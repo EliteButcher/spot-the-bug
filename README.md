@@ -17,3 +17,7 @@ Every anomaly in the game mirrors a real bug archetype:
 
 ## How to play
 Download an HTML file and open it in any browser, or play the hosted build (link on request).
+
+## V.1 gardens (2026-09-19)
+- `spot-the-bug-colony-v1.html` - ants, 5 attempts
+- `spot-the-bug-hive-v1.html` - bees, 4 attempts (playtest build)
