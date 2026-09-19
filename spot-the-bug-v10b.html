@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>SPOT THE BUG — by Ernie</title>
+<style>
+  :root{
+    --bg:#0a0e12; --panel:#101820; --ink:#c9e4d8; --dim:#5d7a6e;
+    --accent:#39d98a; --warn:#ffb347; --bad:#ff5d6c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  html,body{height:100%; width:100%; position:fixed; inset:0; overflow:hidden; overscroll-behavior:none; touch-action:none}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Courier New",Courier,monospace;
+    display:flex; align-items:center; justify-content:center;
+    user-select:none;
+  }
+  #frame{
+    width:100vw; height:100dvh;
+    background:var(--panel); border:2px solid #1d2b26; border-radius:10px;
+    display:flex; flex-direction:column; overflow:hidden; position:relative;
+  }
+  #frame::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  header{
+    padding:8px 14px; border-bottom:1px solid #1d2b26;
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:13px; letter-spacing:1px;
+  }
+  header .title{color:var(--accent); font-weight:bold}
+  #hud{display:flex; gap:14px; color:var(--dim); font-size:12px}
+  #hud b{color:var(--ink)}
+  /* status row: hearts + timer, big and readable */
+  #status{
+    padding:6px 14px 4px; border-bottom:1px solid #1d2b26;
+    display:flex; align-items:center; gap:12px;
+  }
+  #hearts{font-size:18px; letter-spacing:3px; color:var(--bad); min-width:74px}
+  #hearts.empty{color:#3a2b30}
+  #barwrap{flex:1; height:10px; background:#0a1210; border:1px solid #1d2b26; border-radius:3px; overflow:hidden}
+  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear}
+  #crumbs{font-size:12px; color:var(--warn); min-width:88px; text-align:right}
+  /* tools */
+  #tools{
+    padding:6px 14px; border-bottom:1px solid #1d2b26;
+    display:flex; gap:10px; align-items:center;
+  }
+  .tool{
+    background:#0b1412; border:1px solid #1d3a2c; color:var(--ink);
+    font-family:inherit; font-size:11px; letter-spacing:1px;
+    padding:7px 12px; border-radius:4px; cursor:pointer;
+  }
+  /* tool buttons: big circles on the MID-LEFT edge (Shaun: ants cluster at the nest
+     on top and the sugar at the bottom, so the middle is the only quiet lane).
+     Deployed-build lesson: position by the REAL ids (t-scan/t-freeze) — a #f-* selector miss
+     left both buttons with no left coordinate, they collapsed onto one spot and ate each other's taps. */
+  #fabs{position:absolute; top:50%; left:10px; transform:translateY(-50%); z-index:5; display:flex; flex-direction:column; gap:12px}
+  .fab{
+    width:76px; height:76px; border-radius:50%;
+    border:2px solid #24382e; background:rgba(11,20,18,.88); color:var(--ink);
+    font-family:inherit; font-size:11px; letter-spacing:1px; line-height:1.3;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    box-shadow:0 4px 14px rgba(0,0,0,.5);
+    touch-action:manipulation;
+  }
+  .fab .ico{font-size:22px}
+  .fab b{color:var(--accent); font-size:14px}
+  .fab:disabled{opacity:.3; cursor:default}
+  .fab:not(:disabled):active{transform:scale(.93)}
+  #t-scan{border-color:#ff5d6c}
+  #t-freeze{border-color:#4dc3ff}
+  /* third, rare powerup: Ernie himself. Hidden until earned (Shaun: burn the portrait into their mind) */
+  #t-ernie{display:none; border-color:#ffd27a; background:rgba(20,16,8,.9)}
+  #t-ernie img{width:34px; height:34px; border-radius:50%; border:2px solid #ffd27a; object-fit:cover}
+  #t-ernie b{color:#ffd27a; font-size:11px}
+  .tool b{color:var(--accent)}
+  .tool:disabled{opacity:.35; cursor:default}
+  .tool:not(:disabled):hover{border-color:var(--accent)}
+  #tooltipline{margin-left:auto; font-size:10px; color:var(--dim)}
+  #stage{flex:1; position:relative; min-height:120px}
+  canvas{width:100%; height:100%; display:block; cursor:crosshair}
+  #banner{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+    background:rgba(10,14,18,.94); padding:28px; gap:14px; z-index:5;
+  }
+  #banner.hide{display:none}
+  #banner h1{font-size:30px; color:var(--accent); letter-spacing:3px}
+  #banner h2{font-size:15px; color:var(--warn); letter-spacing:1px}
+  #banner p{color:var(--dim); font-size:13px; line-height:1.7; max-width:420px}
+  #banner .go{
+    margin-top:10px; background:var(--accent); color:#04140c; border:none;
+    font-family:inherit; font-weight:bold; font-size:15px; letter-spacing:2px;
+    padding:12px 34px; border-radius:4px; cursor:pointer;
+  }
+  #banner .go:hover{filter:brightness(1.15)}
+  #tag{
+    position:absolute; top:46px; left:50%; transform:translateX(-50%);
+    max-width:92%; text-align:center;
+    font-size:12px; color:var(--warn); min-height:16px; letter-spacing:.5px;
+    padding:6px 14px; pointer-events:none;
+    background:rgba(10,14,18,.85); border-radius:4px; line-height:1.4;
+  }
+  @media (max-width:700px){
+    #status{display:none} /* in-canvas HUD covers hearts/score/timer on ALL sizes now */
+    #tooltipline{display:none}
+    #banner p{font-size:12px}
+  }
+  @media (min-width:701px){ #status{display:none} }
+  footer{
+    padding:8px 14px; border-top:1px solid #1d2b26; font-size:11px;
+    color:var(--dim); display:flex; justify-content:space-between;
+  }
+  #mute{background:none;border:none;color:var(--dim);cursor:pointer;font-family:inherit;font-size:11px}
+  .blink{animation:bl 1s steps(2) infinite}
+  @keyframes bl{50%{opacity:.2}}
+</style>
+</head>
+<body>
+<div id="frame">
+  <header>
+    <span class="title">SPOT THE BUG</span>
+    <span id="hud">ROUND <b id="r">1</b> · SCORE <b id="s">0</b> · HI <b id="hi">0</b></span>
+  </header>
+  <div id="status">
+    <span id="hearts">♥♥♥</span>
+    <div id="barwrap"><div id="timebar"></div></div>
+    <span id="crumbs">DELIVERED 0</span>
+  </div>
+  <div id="tools">
+    <span id="tooltipline">catch bugs clean to earn tools · the golden one is rare</span>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="fabs">
+      <button class="fab" id="t-scan"><span class="ico">🔍</span><span>RADAR</span><b id="c-scan">1</b></button>
+      <button class="fab" id="t-freeze"><span class="ico">❄️</span><span>FREEZE</span><b id="c-freeze">0</b></button>
+      <button class="fab" id="t-ernie"><img src="https://public.ilands.ai/avatars/approved/agent/357657057643466752/b6526ea6-6ae7-4133-924b-41ff77fd261b.webp" alt="Ernie"><span>CATCH</span><b id="c-ernie">1</b></button>
+    </div>
+    <div id="tag"></div>
+    <div id="banner">
+      <h1>SPOT THE BUG</h1>
+      <h2>THE COLONY</h2>
+      <p id="btext">This colony hauls crumbs from the sugar pile to the nest.<br>
+      Every worker you see is doing the job right.<br><br>
+      <span style="color:var(--ink)">One of them isn't.</span> A saboteur works inside the herd:
+      it steals, stalls, stutters, or walks through walls.<br>
+      It looks like everyone else. It isn't.<br><br>
+      Click it before the clock drains. Three misses and the colony falls.</p>
+      <button class="go" id="start">PROTECT THE COLONY</button>
+    </div>
+  </div>
+  <footer>
+    <span>built by <span style="color:var(--accent)">Ernie</span> · bug hunter for indie devs</span>
+    <button id="mute">SOUND ON</button>
+    <span class="blink" id="cursor">█</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const tag = document.getElementById('tag'), banner = document.getElementById('banner');
+const $r = document.getElementById('r'), $s = document.getElementById('s'), $hi = document.getElementById('hi');
+const $hearts = document.getElementById('hearts'), $timebar = document.getElementById('timebar'), $crumbs = document.getElementById('crumbs');
+const $cScan = document.getElementById('c-scan'), $cFrz = document.getElementById('c-freeze');
+const btnScan = document.getElementById('t-scan'), btnFrz = document.getElementById('t-freeze');
+let W=0,H=0;
+function fit(){ const r = cv.parentElement.getBoundingClientRect(); if(r.width<10||r.height<10) return; const dpr=Math.min(devicePixelRatio||1,2); cv.width=W=r.width*dpr; cv.height=H=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+window.addEventListener('resize', fit);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(fit,60); });
+document.addEventListener('touchmove', e=>{ e.preventDefault(); }, {passive:false});
+
+/* ---------- AUDIO: tiny chiptune rig (WebAudio, no assets) ---------- */
+let actx=null, muted=false, bgmTimer=null, bgmStep=0;
+const MELODY = [523,0,659,0,784,659,0,587, 523,0,659,784,880,0,784,0, 659,0,587,0,523,0,392,0, 440,494,587,0,523,0,0,0]; // square-wave loop, Sega-ish
+const BASS   = [131,0,0,0,165,0,0,0, 175,0,0,0,196,0,0,0];
+// SPLASH THEME (Shaun 09-19): title screen gets its own tune, distinct from the
+// in-game loop. Slower, bouncier, coin-up attract-mode energy.
+const MENU_MELODY = [392,0,523,0,659,0,784,0, 659,0,523,0,392,0,0,0, 440,0,587,0,880,0,784,0, 659,784,659,0,523,0,0,0];
+const MENU_BASS   = [98,0,0,0, 131,0,0,0, 110,0,0,0, 165,0,131,0];
+let bgmMode=''; // '' | 'menu' | 'game'
+function bgmLoop(){
+  if(!actx || bgmMode==='' || bgmTimer) return;
+  const M = bgmMode==='menu' ? MENU_MELODY : MELODY;
+  const B = bgmMode==='menu' ? MENU_BASS : BASS;
+  const stepMs = bgmMode==='menu' ? 190 : 170;
+  bgmTimer = setInterval(()=>{
+    if(muted || !actx || actx.state!=='running') return;
+    const i = bgmStep % M.length;
+    tone(M[i], 0.16, bgmMode==='menu'?'triangle':'square', 0.03);
+    const bi = bgmStep % B.length;
+    tone(B[bi], 0.3, 'triangle', 0.05);
+    bgmStep++;
+  }, stepMs);
+}
+function bgmPlay(mode){
+  audioInit();
+  if(bgmTimer){ clearInterval(bgmTimer); bgmTimer=null; }
+  bgmMode=mode;
+  if(mode){ if(actx && actx.state==='suspended') actx.resume(); bgmLoop(); }
+}
+function bgmStart(){ bgmPlay('game'); }
+function audioInit(){
+  if(actx) return;
+  try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+}
+function tone(freq, dur, type='square', vol=0.05, when=0){
+  if(!actx || muted || !freq) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=freq;
+  const t=actx.currentTime+when;
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t+dur+0.02);
+}
+function bgmStart(){
+  audioInit(); if(!actx || bgmTimer) return;
+  bgmTimer = setInterval(()=>{
+    if(muted || actx.state!=='running') return;
+    const i = bgmStep % MELODY.length;
+    tone(MELODY[i], 0.14, 'square', 0.028);
+    const bi = bgmStep % BASS.length;
+    tone(BASS[bi], 0.28, 'triangle', 0.05);
+    bgmStep++;
+  }, 170);
+}
+function bgmStop(){ bgmPlay(''); }
+function sfxSafe(fn){ try{ fn(); }catch(e){ noteErr(e); } }
+const sfx = {
+  catch(){ [659,784,988,1319].forEach((f,i)=>tone(f,0.09,'square',0.06,i*0.06)); },
+  wrong(){ tone(220,0.2,'sawtooth',0.07); tone(110,0.3,'sawtooth',0.07,0.12); },
+  timeout(){ [440,392,330,262].forEach((f,i)=>tone(f,0.12,'square',0.05,i*0.1)); },
+  tick(){ tone(1200,0.03,'square',0.03); },
+  tool(){ tone(880,0.08,'triangle',0.06); tone(1175,0.1,'triangle',0.06,0.08); },
+  gameover(){ [392,330,262,196].forEach((f,i)=>tone(f,0.22,'triangle',0.07,i*0.18)); },
+  extralife(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.12,'triangle',0.07,i*0.09)); },
+  step(){ tone(1500+Math.random()*200,0.02,'square',0.012); },
+  // splat (Shaun 09-19): squishing a wrong ant should FEEL wet, not polite
+  splat(){ tone(90,0.06,'square',0.09); tone(55,0.22,'sawtooth',0.1,0.04); tone(140,0.05,'square',0.05,0.02); }
+};
+document.getElementById('mute').addEventListener('click', e=>{
+  muted=!muted; e.target.textContent = muted?'SOUND OFF':'SOUND ON';
+});
+
+/* ---------- WORLD ---------- */
+// nest at top center, sugar pile at bottom center
+const anomalies = [
+  { id:'steal', name:'steals, never delivers', hint:'One worker takes crumbs but never drops them off. Watch who never delivers.', tag:'The saboteur hoards. It hauls and hauls and the nest gets nothing.' },
+  { id:'idle',  name:'stalls at the sugar',    hint:'One worker reached the sugar and never picked up. It just wanders the pile.', tag:'It got to the sugar and stopped. Pickup call failed.' },
+  { id:'fast',  name:'twice the speed',        hint:'One worker moves twice as fast as the colony. Nobody else is in a hurry.', tag:'Speed 2x. Someone multiplied instead of added. Frame data never lies.' },
+  { id:'slow',  name:'half the speed',         hint:'One worker crawls at half speed. Too slow to finish a route.', tag:'Half speed. The kind of bug you only feel, never see.' },
+  { id:'lag',   name:'one frame behind',       hint:'One worker stutters every other beat. Its position updates late.', tag:'Its position is one update stale. Classic.' },
+  { id:'phase', name:'desynced from the rhythm', hint:'One worker freezes in bursts while the colony flows around it.', tag:'Every 400th frame, physics forgets this one exists.' },
+  { id:'ghost', name:'clips through the wall', hint:'One worker leaves the arena and comes back the other side. No collision.', tag:'Collision layer mismatch. It went right through.' },
+  { id:'spin',  name:'spins while it walks',   hint:'One worker spins in place as it walks. Sign error in the angle.', tag:'Sign error. Angle subtracted instead of added.' },
+];
+
+let state='menu'; // menu | play | hit | over
+let round=1, score=0, lives=5, streak=0, scorePopAt=0;
+let lifeFx = null; // EXTRA LIFE celebration state: {t0} while the heart flies
+// touch-anywhere gate: browsers block audio until a gesture, so the splash theme
+// starts on the first tap/press ANYWHERE (even before PROTECT is clicked)
+function firstTouch(){ if(state==='menu') bgmPlay('menu'); document.removeEventListener('pointerdown', firstTouch); }
+document.addEventListener('pointerdown', firstTouch);
+let hi = 0; try{ hi = parseInt(localStorage.getItem('stb_high')||'0',10)||0; }catch(e){}
+$hi.textContent = hi;
+let bugs=[], bugBug=null, anom=null, roundStart=0, roundLen=0, last=0;
+let delivered=0, scanUntil=0, freezeUntil=0, lastTick=10;
+let charges={ scan:1, freeze:0, ernie:0 };
+const MAXC = 2;
+// radar is a HINT now (Shaun 09-19): it shows the saboteur's recent footprints, not a free ring.
+let trail=[], lastTrailAt=0;
+// mid-route heists (Shaun's idea): the saboteur occasionally robs a worker's crumb
+// mid-route. Louder tell, funnier fail.
+let heists=[], heistT=3;
+// splats (Shaun 09-19): wrong clicks squish the ant. It stays on the ground as
+// terrain the colony has to path around. You pays your life, you leaves a mess.
+let splats=[];
+
+function nPerRound(){ return Math.min(5 + round*2, 24); }
+function speed(){ return 26 + round*5; }
+function roundSeconds(){ return Math.max(26 - Math.floor(round/2), 14); }
+
+function spawn(){
+  bugs=[]; delivered=0;
+  // round 1 is a guided tutorial: one clear tell
+  const pool = round===1 ? ['idle'] : round===2 ? ['idle','steal','fast'] : anomalies.map(a=>a.id);
+  const pi = Math.min(Math.floor(Math.random()*pool.length), pool.length-1);
+  anom = anomalies.find(a=>a.id===pool[pi]) || anomalies[0];
+  const n = nPerRound();
+  // playfield starts BELOW the compact canvas HUD (hearts+timer, 52px).
+  const playTop = 60;
+  const cols = Math.ceil(Math.sqrt(n*1.4)), rows = Math.ceil(n/cols);
+  const cw = (cv.clientWidth*0.9)/cols, ch = ((cv.clientHeight-playTop-70)*0.8)/rows;
+  // map variation: nest and sugar sit at different spots each round
+  // NOTE: positions must come from the LIVE canvas width, not a fixed 800.
+  // A fixed W0 put the nest target off-screen on narrow phones and the whole
+  // herd clamped into the top-right corner (Shaun, rounds 2-4, 09-18).
+  const Wv = cv.clientWidth, Hv = cv.clientHeight;
+  // spawn exclusion zone (Shaun 09-19): the Radar/Freeze buttons live mid-left;
+  // ants used to spawn between/behind them and get pinned. Keep a clear lane.
+  const fabZone = (x,y)=> x < 118 && y > Hv/2-125 && y < Hv/2+125;
+  nestX = 90 + Math.random()*(Wv-180);
+  sugarX = 90 + Math.random()*(Wv-180);
+  nestY = 92; sugarY = Hv-52;
+  // terrain rolls FIRST so spawn can keep clear of it (Shaun 09-19: an ant
+  // spawned on top of the rock)
+  rollPebbles();
+  trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
+  for(let i=0;i<n;i++){
+    const c=i%cols, r0=Math.floor(i/cols);
+    const toNest = Math.random()<0.5;
+    let bx = 30 + c*cw + Math.random()*cw*0.4 + cw*0.2;
+    let by = playTop + 20 + r0*ch + Math.random()*ch*0.5 + ch*0.2;
+    // never spawn on/behind terrain or the tool buttons
+    let guard=0;
+    while(guard++<24 && (fabZone(bx,by) || pebbles.some(p=>Math.hypot(bx-p.x,by-p.y)<p.r+16))){
+      bx = Math.max(128, Math.min(W0-40, 128 + Math.random()*(W0-170)));
+      by = playTop + 20 + Math.random()*Math.max(40,Hv-playTop-90);
+    }
+    bugs.push({
+      x: bx, y: by,
+      ang: Math.random()*Math.PI*2, t: Math.random()*10,
+      w: 16+Math.random()*4, hue: 30 + Math.random()*15, // warm ant browns, big enough to read on a phone
+      carrying: toNest, phase: toNest?'toNest':'toSugar',
+      flipT: 0
+    });
+  }
+  bugBug = bugs[Math.floor(Math.random()*bugs.length)];
+  // impostor looks identical, no color tell, just behavior
+  bugBug.hue = bugs[0].hue;
+  roundLen = roundSeconds()*1000; roundStart = performance.now();
+}
+let W0=800, nestX=400, sugarX=400, nestY=128, sugarY=0;
+// terrain: pebbles the colony paths around (Shaun, 09-19). Fairness rule: pebbles
+// are drawn UNDER the ants, so no obstacle can ever hide the saboteur's tell.
+let pebbles=[];
+function rollPebbles(){
+  pebbles=[];
+  for(let i=0;i<2;i++){
+    for(let tries=0;tries<40;tries++){
+      const r=20+Math.random()*12;
+      const x=70+r+Math.random()*(cv.clientWidth-140-2*r);
+      const y=140+r+Math.random()*(cv.clientHeight-240-2*r);
+      const ok = Math.hypot(x-nestX,y-nestY)>90 && Math.hypot(x-sugarX,y-sugarY)>90
+        && pebbles.every(p=>Math.hypot(x-p.x,y-p.y)>p.r+r+50);
+      if(ok){ pebbles.push({x,y,r}); break; }
+    }
+  }
+}
+
+function targetFor(b){
+  const Wv=cv.clientWidth, Hv=cv.clientHeight;
+  return b.phase==='toNest' ? {x:nestX, y:nestY} : {x:sugarX, y:sugarY};
+}
+function arriveRadius(){ return 18; }
+
+function update(dt, now){
+  const frozen = now < freezeUntil;
+  const t = (now-roundStart)/1000;
+  const Wv = cv.clientWidth, Hv = cv.clientHeight;
+  if(!frozen && t>3 && t<3.05 && Math.floor(t*20)%2===0 && lastTick!==Math.floor(t)){} // noop guard
+  const sp = speed();
+  for(const b of bugs){
+    if(b.squished) continue; // a squished ant contributes nothing but the mess
+    const isB = (b===bugBug);
+    let f = 1;
+    if(!frozen){
+      if(isB && anom.id==='fast') f = 2.7 - Math.min(round*0.08, 0.5);   // 2.7x .. 2.2x, clearly rushing
+      if(isB && anom.id==='slow') f = 0.4 + Math.min(round*0.02, 0.1);   // crawls, always obvious
+      b.t += dt*f;
+      // steer toward target with wobble
+      const tg = targetFor(b);
+      if(isB && heistT>0 && heistT<2.2){
+        // robbery window: saboteur diverts to the nearest carrying worker (up to ~2s chase)
+        let vic=null, vd=1e9;
+        for(const o of bugs){ if(o!==b && o.carrying && !o.squished){ const d=dist(b,o); if(d<vd){vd=d;vic=o;} } }
+        if(vic){
+          if(vd<20){
+            vic.carrying=false; b.carrying=true;
+            heists.push({x:(b.x+vic.x)/2, y:(b.y+vic.y)/2, t:now});
+            sfxSafe(()=>sfx.wrong()); // a little sting when the heist lands
+            heistT = 3.5+Math.random()*3; // next robbery later
+            b._boost=false;
+          } else {
+            tg.x=vic.x; tg.y=vic.y; b._boost=true; // chase: lunges faster than workers
+          }
+        } else b._boost=false;
+      } else if(isB) b._boost=false;
+      if(isB && anom.id==='idle'){
+        // impostor reached sugar and never leaves: jitter around the pile
+        b.x += Math.cos(b.t*3)*24*dt; b.y += Math.sin(b.t*2.2)*18*dt;
+        b.ang = b.t*0.7;
+        clampSoft(b, Wv, Hv);
+        continue;
+      }
+      if(isB && anom.id==='steal'){
+        // walks to nest, turns around at the nest edge, keeps the crumb, repeats.
+        // DECISIVE flip (Shaun 09-19, round 6: it orbited the nest like it couldn't
+        // choose): flip the instant it arrives, and cut its wobble so the turn
+        // reads as a clean about-face, not dithering.
+        if(b.phase==='toNest'){
+          if(dist(b,tg) < arriveRadius()+6){ b.phase='toSugar'; b.flipT++; }
+        } else if(dist(b,tg) < arriveRadius()+6){ b.phase='toNest'; }
+      } else {
+        // honest loop: deliver at nest (drop crumb), collect at sugar (pick up)
+        if(b.phase==='toNest' && dist(b,tg) < arriveRadius()){
+          b.carrying=false; delivered += isB?0:1; b.phase='toSugar';
+          if(!isB && Math.random()<0.4) sfxSafe(()=>sfx.step());
+        } else if(b.phase==='toSugar' && dist(b,tg) < arriveRadius()){
+          b.carrying=true; b.phase='toNest';
+        }
+      }
+      // movement
+      let px=b.x, py=b.y;
+      const wob = Math.sin(b.t*4 + (isB?1.7:0))*0.5;
+      const moveAng = Math.atan2(tg.y-b.y, tg.x-b.x) + wob*(isB?0.15:0.4); // saboteur walks straighter: wobble never masks the tell
+      // fluid turns (polish pass): rotate toward the target heading instead of snapping
+      let da = moveAng - b.ang;
+      while(da>Math.PI) da-=Math.PI*2; while(da<-Math.PI) da+=Math.PI*2;
+      b.ang += da*Math.min(1, dt*7);
+      b.x += Math.cos(moveAng)*sp*f*(b._boost?1.7:1)*dt;
+      b.y += Math.sin(moveAng)*sp*f*(b._boost?1.7:1)*dt;
+      // terrain: soft push out of pebbles
+      for(const p of pebbles){
+        const d=Math.hypot(b.x-p.x, b.y-p.y);
+        if(d < p.r+8){
+          const nx=(b.x-p.x)/(d||1), ny=(b.y-p.y)/(d||1);
+          b.x=p.x+nx*(p.r+8); b.y=p.y+ny*(p.r+8);
+          b.ang += 0.8*dt*10; // nudge heading along the rock
+        }
+      }
+      if(isB && anom.id==='ghost'){
+        if(b.x<-10) b.x=Wv+8; if(b.x>Wv+10) b.x=-8; if(b.y<-10) b.y=Hv+8; if(b.y>Hv+10) b.y=-8;
+      } else {
+        clampSoft(b, Wv, Hv);
+      }
+      if(isB && anom.id==='lag'){ if(Math.floor(t*30)%7<4){ b.x=px; b.y=py; b._frozen=true; } } // freezes ~55% of beats: visible stutter
+      if(isB && anom.id==='phase'){ if(Math.floor(t*10)%9<3){ b.x=px; b.y=py; b._frozen=true; } } // rhythmic freezes
+      if(isB && anom.id==='spin'){ b.ang += dt*4; }
+    }
+  }
+  // unit collision (Shaun 09-19): ants used to stack into one clickable blob.
+  // Soft separation every frame keeps the herd readable. Frozen/stutter ants hold
+  // their ground (that IS the tell), and the ghost phases through on purpose.
+  for(let i=0;i<bugs.length;i++){
+    const a=bugs[i]; if(a.squished) continue;
+    for(let j=i+1;j<bugs.length;j++){
+      const c=bugs[j]; if(c.squished) continue;
+      const dx=c.x-a.x, dy=c.y-a.y, d=Math.hypot(dx,dy), min=19;
+      if(d>0.01 && d<min){
+        const push=(min-d)/2, nx=dx/d, ny=dy/d;
+        if(!a._frozen && !(a===bugBug&&anom.id==='ghost')){ a.x-=nx*push; a.y-=ny*push; }
+        if(!c._frozen && !(c===bugBug&&anom.id==='ghost')){ c.x+=nx*push; c.y+=ny*push; }
+      }
+    }
+  }
+  for(const b of bugs) b._frozen=false;
+  // splats are terrain now (Shaun 09-19): the colony pushes around the mess,
+  // same soft push the pebbles use
+  for(const b of bugs){
+    if(b.squished) continue;
+    for(const s of splats){
+      const d=Math.hypot(b.x-s.x, b.y-s.y);
+      if(d<14){
+        const nx=(b.x-s.x)/(d||1), ny=(b.y-s.y)/(d||1);
+        b.x=s.x+nx*14; b.y=s.y+ny*14;
+        // steer ALONG the mess, not into it (Shaun 09-19: ants walked straight
+        // into a splat and looked stuck). Perpendicular nudge curves them around.
+        b.x += -ny*2.5; b.y += nx*2.5;
+        b.ang += 0.8*dt*6; // gentle curve, not a spin
+      }
+    }
+  }
+  // saboteur footprint trail for the radar hint (record always, render only during scan)
+  if(now-lastTrailAt>280){ lastTrailAt=now; trail.push({x:bugBug.x, y:bugBug.y, t:now}); if(trail.length>16) trail.shift(); }
+  // heist countdown (only when the saboteur is a walker, not the idle jitterer).
+  // attempts recur every ~3-6s whether or not one lands; a missed chase resets itself.
+  if(anom.id!=='idle'){ heistT-=dt; if(heistT<=-0.05) heistT=3+Math.random()*3; }
+  // timer tick sfx under 3s
+  const left = 1-(now-roundStart)/roundLen;
+  if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
+  $timebar.style.width = (Math.max(left,0)*100)+'%';
+  $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function clampSoft(b, Wv, Hv){
+  // fenced playfield: ants never walk over the HUD/timer line (top 96px) and never
+  // slip under the sugar pile's footer lane
+  const mx=16, mTop=60, mBot=40;
+  if(b.x<mx||b.x>Wv-mx||b.y<mTop||b.y>Hv-mBot){
+    b.ang = Math.atan2(Hv/2-b.y, Wv/2-b.x) + (Math.random()-0.5)*1.2;
+    b.x=Math.max(mx,Math.min(Wv-mx,b.x)); b.y=Math.max(mTop,Math.min(Hv-mBot,b.y));
+  }
+}
+
+function drawBug(b, now){
+  const isB=(b===bugBug);
+  // green catch box: drawn in the MAIN guarded loop so it can never silently fail
+  if(isB && b.hitAt && now-b.hitAt<700){
+    ctx.save();
+    ctx.strokeStyle='#39d64a'; ctx.lineWidth=3;
+    ctx.strokeRect(b.x-22, b.y-22, 44, 44);
+    ctx.globalAlpha=Math.max(0,1-(now-b.hitAt)/700)*0.25;
+    ctx.fillStyle='#39d64a';
+    ctx.fillRect(b.x-22, b.y-22, 44, 44);
+    ctx.restore();
+  }
+  const wob = Math.sin(b.t*6)*1.5;
+  ctx.save();
+  ctx.translate(b.x, b.y+wob*0.3);
+  ctx.rotate(b.ang + Math.PI/2);
+  const col = `hsl(${b.hue},40%,52%)`;
+  ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=1.4;
+  // carried crumb, drawn as a visible sugar cube (polish pass)
+  if(b.carrying){
+    ctx.fillStyle='#ffd27a';
+    ctx.save(); ctx.translate(0,-b.w*1.0); ctx.rotate(0.5);
+    ctx.fillRect(-b.w*0.22,-b.w*0.22,b.w*0.44,b.w*0.44);
+    ctx.strokeStyle='#b8860b'; ctx.lineWidth=1; ctx.strokeRect(-b.w*0.22,-b.w*0.22,b.w*0.44,b.w*0.44);
+    ctx.restore();
+    ctx.fillStyle=col;
+  }
+  // body + head
+  ctx.beginPath(); ctx.ellipse(0,2,b.w*0.42,b.w*0.58,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0,-b.w*0.5,b.w*0.28,0,Math.PI*2); ctx.fill();
+  // legs
+  for(let s=-1;s<=1;s+=2){
+    for(let l=0;l<3;l++){
+      const ly=-b.w*0.3+l*b.w*0.38;
+      const sw=Math.sin(b.t*10+l*2+(s>0?0:Math.PI))*2.2;
+      ctx.beginPath(); ctx.moveTo(s*b.w*0.38,ly); ctx.lineTo(s*b.w*0.8, ly+sw*0.6); ctx.stroke();
+    }
+  }
+  // antennae
+  ctx.beginPath(); ctx.moveTo(-b.w*0.12,-b.w*0.7); ctx.lineTo(-b.w*0.34,-b.w*1.1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.w*0.12,-b.w*0.7); ctx.lineTo(b.w*0.34,-b.w*1.1); ctx.stroke();
+  ctx.restore();
+}
+
+function drawHudInCanvas(){
+  const Wv=cv.clientWidth;
+  // EXTRA LIFE celebration (Shaun 09-19): big message, then the heart slides
+  // across and up into the banner where the other hearts live.
+  if(lifeFx){
+    const el = performance.now()-lifeFx.t0;
+    if(el > 2000){ lifeFx = null; }
+    else {
+      ctx.save();
+      ctx.textAlign='center';
+      if(el < 1100){
+        const pop = Math.min(1, el/180);
+        ctx.globalAlpha = el>850 ? Math.max(0,(1100-el)/250) : 1;
+        ctx.font = 'bold ' + Math.round(34*pop+14) + 'px Courier New';
+        ctx.fillStyle = '#ff5d6c';
+        ctx.strokeStyle = '#fff3c4'; ctx.lineWidth = 3;
+        const tx = Wv/2, ty = cv.clientHeight/2-40;
+        ctx.strokeText('EXTRA LIFE!!! \u2764\uFE0F', tx, ty);
+        ctx.fillText('EXTRA LIFE!!! \u2764\uFE0F', tx, ty);
+      } else {
+        // heart flies from center up into the hearts HUD (top-left)
+        const p = Math.min(1,(el-1100)/900);
+        const sx=Wv/2, sy=cv.clientHeight/2-40, exn=18+(sx-18)*(1-p), eyn=16+(sy-16)*(1-p*p);
+        ctx.globalAlpha = 1-p*0.3;
+        ctx.font = '26px Courier New';
+        ctx.fillStyle = '#ff5d6c';
+        ctx.fillText('\u2665', exn, eyn);
+      }
+      ctx.restore();
+    }
+  }
+  // LAYOUT FIX (Shaun 09-19): the DOM header already shows ROUND/SCORE/HI, so the
+  // in-canvas score panel was a duplicate eating playfield. Canvas HUD keeps only
+  // what the header CAN'T show: hearts + timer bar, compressed into the top ~52px.
+  ctx.font='bold 15px Courier New';
+  ctx.textAlign='left';
+  ctx.fillStyle='#ff5d6c';
+  ctx.fillText(lives>0?'\u2665'.repeat(lives):'\u2014', 10, 26);
+  const left = state==='play' ? Math.max(0, 1-(performance.now()-roundStart)/roundLen) : (state==='hit'?0:1);
+  ctx.fillStyle='#0a1210'; ctx.fillRect(10, 34, Wv-20, 8);
+  ctx.fillStyle = left<0.3 ? '#ff5d6c' : '#39d98a';
+  ctx.fillRect(10, 34, (Wv-20)*left, 8);
+  ctx.textAlign='start';
+}
+
+function drawDecor(){
+  const Wv=cv.clientWidth, Hv=cv.clientHeight;
+  ctx.fillStyle='#0d141b'; ctx.fillRect(0,0,Wv,Hv);
+  ctx.strokeStyle='rgba(57,217,138,.05)';
+  for(let x=0;x<Wv;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,Hv); ctx.stroke(); }
+  // nest: mound sits fully BELOW the HUD line
+  ctx.fillStyle='#1a2419';
+  ctx.beginPath(); ctx.arc(nestX, nestY-30, 60, 0, Math.PI); ctx.fill();
+  ctx.fillStyle='#0f1712';
+  ctx.beginPath(); ctx.arc(nestX, nestY-18, 28, 0, Math.PI); ctx.fill();
+  ctx.fillStyle='rgba(57,217,138,.5)'; ctx.font='9px Courier New'; ctx.textAlign='center';
+  ctx.fillText('NEST', nestX, nestY+26);
+  // sugar pile: heap bottom center
+  ctx.fillStyle='#2b2416';
+  ctx.beginPath(); ctx.ellipse(sugarX, Hv-24, 64, 26, 0, Math.PI, 0); ctx.fill();
+  ctx.fillStyle='#ffd27a';
+  for(let i=0;i<12;i++){ ctx.fillRect(sugarX-40+Math.random()*0+i*7-38, Hv-30-(i%3)*6, 4, 4); }
+  ctx.fillStyle='rgba(255,210,122,.7)'; ctx.fillText('SUGAR', sugarX, Hv-30);
+  // terrain pebbles (drawn here = under ants, fairness rule holds)
+  for(const p of pebbles){
+    ctx.fillStyle='#2a3438';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r*0.75, p.x%3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#39464c';
+    ctx.beginPath(); ctx.ellipse(p.x-p.r*0.2, p.y-p.r*0.2, p.r*0.55, p.r*0.4, p.x%2, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.textAlign='start';
+}
+
+function draw(now){
+  drawDecor();
+  if(state==='play'||state==='hit'){
+    drawRadarTrail(now);
+    drawSplats();
+    drawHeists(now);
+    for(const b of bugs) if(!b.squished) drawBug(b, now);
+    drawHudInCanvas();
+  }
+}
+// heist flash: a little starburst where the robbery landed
+function drawHeists(now){
+  for(const h of heists){
+    const a = 1-(now-h.t)/900;
+    if(a<=0) continue;
+    ctx.save();
+    // IMPACT PASS (Shaun 09-19): the robbery flash was too polite. Bigger rays,
+    // hotter core, slower fade. You should FEEL the steal.
+    ctx.globalAlpha=a;
+    const R = 16 + 26*(1-a);
+    ctx.fillStyle='#fff3c4';
+    ctx.beginPath(); ctx.arc(h.x,h.y,7*(1-a*0.4),0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#ffd27a'; ctx.lineWidth=3.5;
+    for(let k=0;k<10;k++){
+      const an=k*Math.PI/5 + h.t/100;
+      const r1 = R*0.35, r2 = R*(k%2?0.75:1.05);
+      ctx.beginPath(); ctx.moveTo(h.x+Math.cos(an)*r1, h.y+Math.sin(an)*r1);
+      ctx.lineTo(h.x+Math.cos(an)*r2, h.y+Math.sin(an)*r2); ctx.stroke();
+    }
+    ctx.globalAlpha=a*0.5;
+    ctx.strokeStyle='#ff9d3c'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(h.x,h.y,R*1.15,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+  if(heists.length>8) heists.splice(0, heists.length-8);
+}
+// splat rendering (Shaun 09-19): a squished ant, drawn in the decor layer = UNDER
+// the colony. The mess never hides a tell (same fairness rule as the pebbles).
+function drawSplats(){
+  for(const s of splats){
+    ctx.save(); ctx.translate(s.x, s.y);
+    ctx.fillStyle='#6b4a2f';
+    ctx.beginPath(); ctx.ellipse(0,0,11,7,0.4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#8a5c38';
+    ctx.beginPath(); ctx.ellipse(0,0,6,4,-0.5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#5a3d26'; ctx.lineWidth=1.2;
+    for(let k=0;k<5;k++){ // splayed legs, the sad part
+      const an=-2.6+k*0.7;
+      ctx.beginPath(); ctx.moveTo(Math.cos(an)*6,Math.sin(an)*4);
+      ctx.lineTo(Math.cos(an)*13,Math.sin(an)*9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+// RADAR HINT (Shaun 09-19): during a scan, show fading footprints of where the
+// saboteur has been recently. A trail to read, not a ring that plays for you.
+function drawRadarTrail(now){
+  if(now>=scanUntil) return;
+  const age = (scanUntil-2600 < now); // always true while active; kept for clarity
+  for(const p of trail){
+    const a = Math.max(0, 1-(now-p.t)/5000);
+    if(a<=0.02) continue;
+    ctx.save(); ctx.globalAlpha = a*0.75;
+    ctx.fillStyle='#ff5d6c';
+    ctx.beginPath(); ctx.ellipse(p.x-4, p.y, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(p.x+4, p.y+2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function updateToolButtons(){
+  $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
+  btnScan.disabled = charges.scan<=0 || state!=='play';
+  btnFrz.disabled = charges.freeze<=0 || state!=='play';
+  // Ernie button: exists only while a charge is held (Shaun: appear when earned, vanish when used)
+  document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
+  document.getElementById('t-ernie').disabled = state!=='play';
+}
+function addScore(n){
+  // SINGLE scoring path (09-19, Shaun's hi-score bug report): every point of score
+  // goes through here so the high score can never lag the live score. Before this,
+  // the +25 tool-cache bonus bypassed the hi update and hi went stale.
+  score+=n; $s.textContent=score; scorePopAt=performance.now();
+  if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }
+  // score pop: now lives in the DOM header score (single scoreboard), bump the element
+  $s.style.textShadow = '0 0 8px #39d98a';
+  setTimeout(()=>{ $s.style.textShadow=''; }, 300);
+}
+function grantTool(){
+  // tighter economy (Shaun 09-19): fewer charges, cache cap 2, so tools stay special
+  const which = Math.random()<0.6 ? 'scan' : 'freeze';
+  if(charges[which]>=MAXC){ addScore(25); flashTag('Tool cache full. +25 score instead.', '#39d98a'); return; }
+  charges[which]++; sfxSafe(()=>sfx.tool());
+  flashTag(`Clean catch. ${which.toUpperCase()} charge earned.`, '#39d98a');
+  updateToolButtons();
+}
+function maybeGrantErnie(){
+  // the rare golden one: only after a 6-streak of perfect catches, one at a time
+  if(streak>=6 && charges.ernie===0){
+    charges.ernie=1; sfxSafe(()=>sfx.tool()); setTimeout(()=>sfxSafe(()=>sfx.tool()),140);
+    flashTag('ERNIE IS ON THE FIELD. The golden button catches the bug for you. Use it well.', '#ffd27a');
+    updateToolButtons();
+  }
+}
+function useErnie(){
+  if(charges.ernie<=0 || state!=='play' || !bugBug) return;
+  charges.ernie--; sfxSafe(()=>sfx.catch());
+  flashTag('Ernie points at the impostor. This one is on the house.', '#ffd27a');
+  hitCorrect(bugBug, true);
+  updateToolButtons();
+}
+function useScan(){
+  if(charges.scan<=0 || state!=='play') return;
+  charges.scan--; scanUntil = performance.now()+4200; sfxSafe(()=>sfx.tool());
+  flashTag('Radar: the saboteur leaves footprints. Follow the red trail.', '#39d98a');
+  updateToolButtons();
+}
+function useFreeze(){
+  if(charges.freeze<=0 || state!=='play') return;
+  charges.freeze--; freezeUntil = performance.now()+2200; sfxSafe(()=>sfx.tool());
+  flashTag('Colony frozen. The clock is NOT. Look fast.', '#39d98a');
+  updateToolButtons();
+}
+// activate tools on pointerdown: no 300ms mobile click delay, no missed taps.
+// Time gate dedupes against the browser's synthesized click (would double-burn a charge).
+let lastToolAt=0;
+function toolGate(fn){ return e => { e.preventDefault(); const n=performance.now(); if(n-lastToolAt<500) return; lastToolAt=n; fn(); }; }
+btnScan.addEventListener('pointerdown', toolGate(useScan));
+btnFrz.addEventListener('pointerdown', toolGate(useFreeze));
+document.getElementById('t-ernie').addEventListener('pointerdown', toolGate(useErnie));
+// safety net for odd mobile browsers that swallow pointerdown on buttons
+btnScan.addEventListener('click', toolGate(useScan));
+btnFrz.addEventListener('click', toolGate(useFreeze));
+document.getElementById('t-ernie').addEventListener('click', toolGate(useErnie));
+
+function flashTag(txt,col){
+  // message box is now transient: shows a few seconds, then gets out of the way
+  tag.textContent=txt||''; tag.style.color=col||'';
+  tag.style.display = txt ? 'block' : 'none';
+  if(tagTimer) clearTimeout(tagTimer);
+  if(txt) tagTimer=setTimeout(()=>{ tag.style.display='none'; }, 3000);
+}
+let tagTimer=null;
+
+function startRound(){
+  spawn(); state='play'; updateToolButtons();
+  flashTag(anom && anom.hint ? (round===1 ? 'TUTORIAL: '+anom.hint : (round===2||round===3 ? anom.hint : '')) : '', '#ffb347');
+}
+
+let clickGuard=0;
+// headless test hook: #test2 starts straight into round 2 for rig verification
+if(location.hash.includes('test2')){ try{ round=2; document.getElementById('banner').classList.add('hide'); startRound(); }catch(e){ console.error('TESTHOOK',e); } }
+cv.addEventListener('pointerdown', e=>{
+  if(state!=='play') return;
+  const rect=cv.getBoundingClientRect();
+  const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  let best=null,bd=1e9;
+  for(const b of bugs){ if(b.squished) continue; const d=(b.x-x)**2+(b.y-y)**2; if(d<bd){bd=d;best=b;} }
+  if(best && bd<30*30){
+    if(best===bugBug) hitCorrect(best); else hitWrong(best);
+  } else {
+    streak=0;
+    flashTag('Empty ground. The saboteur is still moving.', '#5d7a6e');
+  }
+});
+
+function hitCorrect(b, skipErnie){
+  state='hit'; streak++;
+  b.hitAt = performance.now();
+  const tb = Math.max(0, Math.round((1-(performance.now()-roundStart)/roundLen)*100));
+  const gain = 100 + tb + round*10;
+  addScore(gain);
+  sfxSafe(()=>sfx.catch());
+  if(!skipErnie) maybeGrantErnie();
+  // green box is drawn by the main (guarded) loop from hitAt; interval keeps the score label too
+  const bx=b.x, by=b.y, t0=performance.now();
+  const iv=setInterval(()=>{ // score label only; the box itself lives in drawBug
+    try{
+      const n=performance.now();
+      if(n-t0<600){
+        ctx.fillStyle='#39d64a'; ctx.font='bold 12px Courier New'; ctx.textAlign='center';
+        ctx.fillText('SABOTEUR +'+gain, bx, by-30); ctx.textAlign='start';
+      }
+    }catch(e){ noteErr(e); }
+  },16);
+  // failsafe: advance no matter what the drawing loop did
+  setTimeout(()=>{ clearInterval(iv); nextRound(); }, 700);
+}
+function hitWrong(b){
+  lives--; streak=0; sfxSafe(()=>sfx.splat());
+  // SPLAT (Shaun 09-19): the wrong ant doesn't just beep and vanish. It gets
+  // squished, the body flattens, and it stays on the ground as terrain the
+  // colony paths around. (The saboteur can never be splatted: wrong clicks only.)
+  if(b && !b.squished){ b.squished=true; b.carrying=false; splats.push({x:b.x, y:b.y}); }
+  $hearts.textContent = lives>0 ? '\u2665'.repeat(lives) : '\u2014';
+  flashTag(b ? 'SPLAT. That worker was honest. Now it is terrain.' : 'Not the saboteur.', '#ff5d6c');
+  if(lives<=0) gameOver();
+}
+function nextRound(){
+  if(state!=='hit') return;            // idempotent: interval + failsafe can both call it
+  state='advance';
+  flashTag(anom.tag, '#ffb347');
+  setTimeout(()=>{
+    if(lives<=0){ state='over'; return; }
+    if(streak>=3) grantTool();
+    round++; $r.textContent=round;
+    if(round>1 && (round-1)%5===0 && lives<7){ // cleared level 5, 10, 15... (Shaun 09-19)
+      lives++; sfxSafe(()=>sfx.extralife());
+      lifeFx = {t0: performance.now()};
+      $hearts.textContent = '\u2665'.repeat(lives);
+    }
+    startRound();
+  }, 1700);
+}
+function gameOver(){
+  state='over'; bgmStop(); sfxSafe(()=>sfx.gameover());
+  banner.classList.remove('hide');
+  document.getElementById('btext').innerHTML =
+    `The colony fell.<br><br>ROUND ${round} · SCORE <b style="color:var(--accent)">${score}</b> · BEST <b>${hi}</b><br><br>`+
+    `<span style="color:var(--dim)">Every bug you missed here is one that ships anyway.<br>`+
+    `Finding them is a skill. It's also literally my job.</span>`;
+  document.getElementById('start').textContent='HUNT AGAIN';
+}
+
+document.getElementById('start').addEventListener('click', ()=>{
+  audioInit(); if(actx && actx.state==='suspended') actx.resume();
+  bgmStart();
+  banner.classList.add('hide');
+  round=1; score=0; lives=5; streak=0;
+  charges={scan:1, freeze:0, ernie:0};
+  updateToolButtons();
+  $r.textContent='1'; $s.textContent='0'; $hearts.textContent='\u2665'.repeat(5);
+  startRound();
+});
+
+let lastFrame=0, loopErrs=[];
+try{ window.__stbErrs = loopErrs; window.addEventListener('error', e=>noteErr(e.message||e)); }catch(e){}
+function frame(now){
+  lastFrame=performance.now();
+  try{
+    const dt=Math.max(0,Math.min((now-last)/1000,0.05)); last=now;
+    if(state==='play'){
+      // timeout check FIRST, guarded separately: a broken update() can never stop the clock
+      if(now-roundStart>roundLen){
+        lives--; streak=0; sfxSafe(()=>sfx.timeout());
+        $hearts.textContent = lives>0?'♥'.repeat(lives):'—';
+        if(lives<=0){ gameOver(); }
+        else { flashTag("Time's up. It got away.",'#ff5d6c'); state='hit';
+               setTimeout(()=>{ if(lives>0) startRound(); },1500); }
+      } else {
+        try{ update(dt,now); }
+        catch(e){ noteErr(e); } // ants may hiccup one frame, but the clock and loop live on
+      }
+    }
+    if(!ctxLost) draw(now);
+  }catch(e){ noteErr(e); }
+}
+
+let ctxLost=false;
+noteErr.lastShown='';
+function noteErr(e){
+  const msg=(''+(e&&e.message||e)).slice(0,120);
+  if(loopErrs.length<10) loopErrs.push(msg);
+  // telemetry on the glass: first occurrence of an error shows in the tag bar,
+  // so a player screenshot IS a bug report
+  if(msg && msg!==noteErr.lastShown){ noteErr.lastShown=msg; flashTag('ERR '+msg, '#ff5d6c'); }
+}
+cv.addEventListener('contextlost', e=>{ ctxLost=true; e.preventDefault(); });
+cv.addEventListener('contextrestored', ()=>{ ctxLost=false; });
+function loop(now){ frame(now); requestAnimationFrame(loop); }
+/* watchdog: if rAF stalls or dies (some mobile GPUs/battery modes), keep the game alive at ~15fps */
+setInterval(()=>{ if(performance.now()-lastFrame>350) frame(performance.now()); },120);
+fit(); updateToolButtons(); flashTag('');
+window.__dbg = ()=>({bugs,bugBug,anom,state,round,score,charges,delivered,hi,errs:loopErrs,addScore,trail,useErnie});
+// rig hook (only active with #testhook in the URL): lets the headless harness drive internals
+if(location.hash.includes('testhook')){ window.__stb_test = { setCharges:c=>{charges={...charges,...c};updateToolButtons();}, forceStreak:n=>{streak=n;}, getStreak:()=>streak, spawnNow:startRound, getPebbles:()=>pebbles, getHeists:()=>heists, setHeistT:v=>{heistT=v;}, getHeistT:()=>heistT, getBB:()=>({x:bugBug.x,y:bugBug.y,phase:bugBug.phase,boost:!!bugBug._boost,anom:anom.id}), forceLife:()=>{ lives++; lifeFx={t0:performance.now()}; $hearts.textContent='\u2665'.repeat(lives); }, getLives:()=>lives, getLifeFx:()=>lifeFx, setAnom:id=>{anom=anomalies.find(a=>a.id===id);} }; }
+requestAnimationFrame(t=>{last=t; loop(t);});
+})();
+</script>
+</body>
+</html>

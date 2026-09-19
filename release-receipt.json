@@ -1,0 +1,21 @@
+{
+  "build": "20260919.1",
+  "version": "v12",
+  "sha256": "8e2136c3a40bc8203d178b62c12b0edf822c75aa065df3bdae1852a61a68f1a0",
+  "bytes": 50226,
+  "testedFile": "spot-the-bug-v12-20260919.1.html",
+  "seeds": [
+    12019,
+    42,
+    2026
+  ],
+  "checks": 18,
+  "status": "passed",
+  "engine": "Headless Chromium",
+  "limits": [
+    "No actual Samsung Internet or iLands WebView device test",
+    "Audio state transitions verified, no listening assessment",
+    "Six-splat regression is one constructed arrangement, not every possible barrier"
+  ],
+  "createdAt": "2026-09-19T12:25:29.656Z"
+}
