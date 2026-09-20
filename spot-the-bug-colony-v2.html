@@ -390,11 +390,14 @@ function rollPebbles(){
   }
 }
   // Caches the grass blades (using olive/dry green colors so they blend in) and builds an organic, jagged shape with bark lines for the twig.
+// === UI: FOREGROUND STATE ===
+// We cache the geometry here so the math doesn't rerun 60 times a second.
+// Renamed 'leaves' to 'smallLeaves' for your future Seasons mechanic.
 function rollOvergrowth(){
-  overgrowth=[]; leaves=[]; nextLeafAt=0; // Reset everything
+  overgrowth=[]; smallLeaves=[]; giantLeaves=[]; nextGiantLeafAt=gameNow + 2000;
   const Wv = cv.clientWidth, Hv = cv.clientHeight;
   
-  // 1. Grass Patches (Cached geometry)
+  // 1. Grass Patches (Cached organic geometry)
   const numGrass = 2 + Math.floor(Math.random()*2);
   for(let i=0; i<numGrass; i++){
     for(let tries=0; tries<40; tries++){
@@ -422,26 +425,31 @@ function rollOvergrowth(){
     }
   }
 
-  // 2. The Twig (Cached bark and organic shape)
+  // 2. The Propped Branch (Multi-pronged and elevated)
   for(let tries=0; tries<40; tries++){
     const x = 100 + Math.random()*(Wv - 200);
     const y = 150 + Math.random()*(Hv - 300);
     
     if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110){
-      const len = 130 + Math.random()*60;
-      let bark = [];
-      for(let b=0; b<10; b++) {
-         bark.push({
-            x: -len/2 + 10 + Math.random()*(len-20),
-            y: (Math.random()-0.5)*6,
-            l: 15 + Math.random()*30
+      const len = 160 + Math.random()*60;
+      const ang = (Math.random()-0.5)*Math.PI;
+      
+      // Generate organic sub-branches attached to the main log
+      let subBranches = [];
+      for(let b=0; b<3; b++) {
+         subBranches.push({
+            lx: (Math.random() - 0.5) * len * 0.6, // Position along main branch
+            ang: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.6), // Angle out
+            len: 40 + Math.random()*50
          });
       }
-      overgrowth.push({ type: 'twig', x, y, ang: (Math.random()-0.5)*Math.PI, len, bark });
+      
+      overgrowth.push({ type: 'branch', x, y, ang, len, subBranches });
       break;
     }
   }
 }
+// === END FOREGROUND STATE ===
 function targetFor(b){
   const Wv=cv.clientWidth, Hv=cv.clientHeight;
   return b.phase==='toNest' ? {x:nestX, y:nestY} : {x:sugarX, y:sugarY};
@@ -545,29 +553,32 @@ function update(dt, now){
   trail=trail.filter(p=>now-p.t<=1200).slice(-48);
   if(anom.id!=='idle'){ heistT-=dt; if(heistT<=-0.05) heistT=3+Math.random()*3; }
   // New Leaf Physics Block
-// --- LEAF PHYSICS ENGINE ---
-  if(!frozen && now > nextLeafAt) {
-    leaves.push({
-      x: Math.random() * Wv, y: -40,
-      vx: (Math.random()-0.5)*30, vy: 40 + Math.random()*30,
-      ang: Math.random()*Math.PI, rot: (Math.random()-0.5)*1.5,
-      t: Math.random()*10,
-      hue: 15 + Math.random()*35 // Autumn reds/oranges
+// === GIANT LEAF PHYSICS ENGINE ===
+  // Spawns a massive foreground obstruction that sweeps in a parametric arc
+  if(!frozen && now > nextGiantLeafAt) {
+    giantLeaves.push({
+      x: -300, y: Hv * 0.2, // Start safely off-screen
+      t: 0,
+      duration: 5000 + Math.random()*3000, // Takes 5-8 seconds to cross screen
+      scale: Math.min(Wv, Hv) * 0.8, // Massive scaling relative to device //FOR SHAUN: LEAF --> Adjust Size/Scale of leaf here
+      hue: 15 + Math.random()*35 // Autumn reds/oranges  //FOR SHAUN: LEAF --> This will be Variable when "Seasons" are activated OR When we have an array of leaves.
     });
-    nextLeafAt = now + 1500 + Math.random()*3000;
+    nextGiantLeafAt = now + 9000 + Math.random()*5000; // Rare occurrence
   }
 
-  for(let i = leaves.length-1; i >= 0; i--){
-    let l = leaves[i];
-    if(!frozen) {
-      l.t += dt;
-      l.x += (l.vx + Math.sin(l.t*2)*20) * dt; // Sway left/right
-      l.y += l.vy * dt;
-      l.ang += l.rot * dt;
-    }
-    if(l.y > Hv + 60 || l.x < -60 || l.x > Wv + 60) leaves.splice(i, 1);
+  for(let i = giantLeaves.length-1; i >= 0; i--){
+    let gl = giantLeaves[i];
+    if(!frozen) gl.t += dt * 1000; // Convert dt to milliseconds
+    
+    // Parametric swoop math: Moves X linearly, but Y loops on a sine wave
+    const progress = gl.t / gl.duration;
+    gl.x = -300 + (Wv + 600) * progress; 
+    gl.y = Hv * 0.3 + Math.sin(progress * Math.PI * 2.5) * 180; 
+    gl.ang = Math.sin(progress * Math.PI) * 1.5;
+    
+    if(progress >= 1) giantLeaves.splice(i, 1);
   }
-  // ---------------------------
+  // === END GIANT LEAF PHYSICS ===
   // Close Leaf Physics
   const left = 1-(now-roundStart)/roundLen;
   
@@ -961,50 +972,49 @@ function drawHudInCanvas(){
   ctx.fillRect(10, 34, (Wv-20)*left, 8);
   ctx.textAlign='start';
 }
+// === UI: RENDER FOREGROUND ===
 function drawForeground(now){
-  // 1. Static Overgrowth (Grass & Twigs)
+  
+  // 1. Static Overgrowth (Interactive Grass & Propped Branches)
   for(const f of overgrowth){
     ctx.save(); ctx.translate(f.x, f.y);
     
     if(f.type === 'grass') {
-      // Soft, organic dirt base (no more perfect manhole circles)
-      ctx.shadowColor = 'transparent';
+      // Soft, jagged dirt base
       ctx.fillStyle = 'rgba(15,20,12,0.5)';
       ctx.beginPath();
       for(let i=0; i<8; i++) {
          const a = i * Math.PI/4;
-         const rr = f.r * (0.7 + 0.2*Math.sin(i*2.1 + f.x)); // Jagged edges
+         const rr = f.r * (0.7 + 0.2*Math.sin(i*2.1 + f.x)); 
          const px = Math.cos(a)*rr;
          const py = Math.sin(a)*rr*0.5;
          if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
       }
       ctx.fill();
       
-      // Draw cached blades with interaction math
+      // Parting Grass Logic
       ctx.lineCap = 'round';
       for(const b of f.blades){
         let bend = 0;
         let partAlpha = 1;
         
-        // Find absolute world position of this specific blade
         const wx = f.x + b.ox;
         const wy = f.y + b.oy;
 
-        // Interaction: Check distance to all ants
         for(const ant of bugs) {
           if(ant.squished) continue;
           const dx = ant.x - wx;
           const dy = ant.y - wy;
           const dist = Math.hypot(dx, dy);
           
-          if(dist < 28) { // Ant is in the grass
+          if(dist < 28) { 
             const pushForce = (28 - dist) / 28;
-            bend -= Math.sign(dx) * pushForce * 0.9; // Bend away from ant
-            partAlpha = 0.55; // Fade the blade so the ant remains visible
+            bend -= Math.sign(dx) * pushForce * 0.9; // Bends away from ant
+            partAlpha = 0.55; // Fade so the ant is visible
           }
         }
 
-        const sway = Math.sin(now/800 + b.sway) * 0.12; // Gentle, slow wind
+        const sway = Math.sin(now/800 + b.sway) * 0.12; 
         const finalAn = b.an + sway + bend;
         
         ctx.strokeStyle = `hsla(${b.hue}, 40%, ${b.lum}%, ${partAlpha})`;
@@ -1017,52 +1027,83 @@ function drawForeground(now){
         ctx.stroke();
       }
     } 
-    else if (f.type === 'twig') {
+    else if (f.type === 'branch') {
       ctx.rotate(f.ang);
-      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 12;
       
-      // Jagged polygon shape instead of a perfect line
-      ctx.fillStyle = '#4a3320';
-      ctx.beginPath();
-      ctx.moveTo(-f.len/2, -4);
-      ctx.lineTo(f.len/2, -6);
-      ctx.lineTo(f.len/2 + 5, 0);
-      ctx.lineTo(f.len/2, 6);
-      ctx.lineTo(-f.len/2, 5);
-      ctx.lineTo(-f.len/2 - 4, 0);
-      ctx.closePath();
-      ctx.fill();
+      // Massive, offset drop shadow implies the wood is suspended in the air
+      ctx.shadowColor = 'rgba(0,0,0,0.7)'; 
+      ctx.shadowBlur = 15; 
+      ctx.shadowOffsetY = 35; 
+      ctx.shadowOffsetX = 10;
       
-      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#3a2411'; 
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       
-      // Textured bark lines
-      ctx.strokeStyle = '#2a1a0d'; ctx.lineWidth = 1.5;
-      for(const bark of f.bark) {
-         ctx.beginPath(); ctx.moveTo(bark.x, bark.y); ctx.lineTo(bark.x + bark.l, bark.y); ctx.stroke();
+      // Main Log
+      ctx.lineWidth = 18;
+      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      
+      // Sub-branches
+      for(const sb of f.subBranches) {
+         ctx.lineWidth = 10;
+         ctx.beginPath(); 
+         ctx.moveTo(sb.lx, 0); 
+         ctx.quadraticCurveTo(sb.lx + 10, Math.sin(sb.ang)*20, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len); 
+         ctx.stroke();
       }
       
       // Top edge highlight for 3D depth
+      ctx.shadowColor = 'transparent';
       ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, -3); ctx.lineTo(f.len/2, -4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-f.len/2, -4); ctx.lineTo(f.len/2, -4); ctx.stroke();
     }
     ctx.restore();
   }
 
-  // 2. Dynamic Leaves
-  for(const l of leaves){
-    ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.ang);
+  // 2. The Giant Leaf
+  for(const gl of giantLeaves){
+    ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
     
-    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 12; ctx.shadowOffsetX = 8; ctx.shadowOffsetY = 15;
+    // Deep, sweeping shadow over the playfield
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; 
+    ctx.shadowOffsetX = 20; ctx.shadowOffsetY = 50;
     
-    ctx.fillStyle = `hsl(${l.hue}, 60%, 40%)`;
-    ctx.beginPath(); ctx.moveTo(0, -14); ctx.quadraticCurveTo(12, -8, 0, 14); ctx.quadraticCurveTo(-12, -8, 0, -14); ctx.fill();
+    ctx.scale(gl.scale/100, gl.scale/100); // Normalize scale
     
-    ctx.shadowColor = 'transparent'; 
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, 16); ctx.lineTo(0, -10); ctx.stroke();
+    ctx.fillStyle = `hsl(${gl.hue}, 65%, 45%)`;
+    ctx.strokeStyle = `hsl(${gl.hue}, 70%, 30%)`;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    
+    // Complex, jagged Maple Leaf path
+    ctx.beginPath();
+    ctx.moveTo(0, 40); // Base stem
+    ctx.lineTo(-5, 5); // Bottom left indent
+    ctx.lineTo(-40, 15); // Bottom left point
+    ctx.lineTo(-25, -10); // Mid left indent
+    ctx.lineTo(-45, -30); // Mid left point
+    ctx.lineTo(-15, -35); // Top left indent
+    ctx.lineTo(0, -60); // Top center point
+    ctx.lineTo(15, -35); // Top right indent
+    ctx.lineTo(45, -30); // Mid right point
+    ctx.lineTo(25, -10); // Mid right indent
+    ctx.lineTo(40, 15); // Bottom right point
+    ctx.lineTo(5, 5); // Bottom right indent
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    
+    // Center Vein
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, 55); ctx.lineTo(0, -45); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-30, -20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30, -20); ctx.stroke();
+    
     ctx.restore();
   }
 }
+// === END RENDER FOREGROUND ===
 function draw(now){
   document.getElementById('frame').classList.toggle('cinematic',state==='cine');
   if(!lifeFx)document.getElementById('celebrate').style.display='none';
