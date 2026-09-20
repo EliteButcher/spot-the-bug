@@ -557,33 +557,45 @@ function update(dt, now){
  // === WIND PHYSICS ENGINE ===
   if(!frozen && now > nextWindAt) {
     wind.active = true;
-    wind.vx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 15); // Wind blows left or right
-    wind.timer = now + 4000 + Math.random() * 2000; // Wind lasts 4 to 6 seconds
+    wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (12 + Math.random() * 10);
+    wind.timer = now + 5000 + Math.random() * 2000; // Wind lasts 5-7 seconds total
     wind.leafDropped = false;
-    nextWindAt = now + 25000 + Math.random() * 20000; // Only happens 1-2 times per round
+    wind.intensity = 0; // Smooth build-up
+    nextWindAt = now + 30000 + Math.random() * 20000; 
   }
 
   if(wind.active) {
+    // Smoothly ramp wind intensity up and down so it doesn't snap
+    const timeLeft = wind.timer - now;
+    if (timeLeft < 1000) {
+      wind.intensity = Math.max(0, wind.intensity - dt * 2); // Fade out
+    } else {
+      wind.intensity = Math.min(1, wind.intensity + dt * 1.5); // Fade in
+    }
+    wind.vx = wind.targetVx * wind.intensity;
+
     if(now > wind.timer) {
       wind.active = false;
     } else if(!frozen) {
-      // Gently nudge ants in the direction of the wind
-      for(const b of bugs) if(!b.squished) b.x += wind.vx * dt * 0.4;
+      // Gently nudge ants in the direction of the wind based on current intensity
+      for(const b of bugs) if(!b.squished) b.x += wind.vx * dt * 0.3;
       
-      // Drop the leaf 1.75 seconds into the wind gust
-      if(!wind.leafDropped && now > (nextWindAt - 25000 + 1750)) {
+      // Drop the leaf 1.75 seconds AFTER wind starts blowing as a warning cue
+      if(!wind.leafDropped && wind.intensity > 0.8) {
         wind.leafDropped = true;
         giantLeaves.push({
-          x: wind.vx > 0 ? -200 : Wv + 200, // Spawns upwind
-          y: Hv * 0.2 + (Math.random()-0.5)*100,
-          t: 0, duration: 3000 + Math.random()*1500, // Fast, wind-driven flight
-          vx: wind.vx * 40, // Carried by wind speed
-          scale: Math.min(Wv, Hv) * 0.9,
+          x: wind.vx > 0 ? -250 : Wv + 250,
+          y: Hv * 0.2 + (Math.random()-0.5)*80,
+          t: 0, duration: 3500 + Math.random()*1500,
+          vx: wind.vx * 35,
+          scale: Math.min(Wv, Hv) * 0.85,
           hue: 15 + Math.random()*25,
-          rot: (Math.random()-0.5) * 3
+          rot: (Math.random()-0.5) * 2.5
         });
       }
     }
+  } else {
+    wind.intensity = Math.max(0, wind.intensity - dt * 2);
   }
 
   // Calculate Leaf Flight Path
@@ -593,8 +605,8 @@ function update(dt, now){
     
     const progress = gl.t / (gl.duration / 1000);
     gl.x += gl.vx * dt;
-    gl.y += Math.sin(progress * Math.PI * 4) * 120 * dt; // Flutter up and down
-    gl.ang = Math.sin(progress * Math.PI * 2) * 0.8 + gl.rot * dt;
+    gl.y += Math.sin(progress * Math.PI * 4) * 100 * dt; 
+    gl.ang = Math.sin(progress * Math.PI * 2) * 0.6 + gl.rot * dt;
     
     if(progress >= 1 || gl.x < -400 || gl.x > Wv + 400) giantLeaves.splice(i, 1);
   }
@@ -991,7 +1003,31 @@ function drawHudInCanvas(){
   ctx.fillRect(10, 34, (Wv-20)*left, 8);
   ctx.textAlign='start';
 }
-// === UI: RENDER FOREGROUND ===
+// === Draw Wind===
+  // Draws subtle, semi-transparent wind lines across the screen when a gust is active
+function drawWindStreaks(now, Wv, Hv){
+  if(wind.intensity <= 0.05) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  
+  const lineCount = 12;
+  for(let i=0; i<lineCount; i++){
+    // Offset lines based on time and index so they stream across continuously
+    const speedMultiplier = 150 + (i * 37) % 100;
+    const xOffset = ((now * 0.5 * wind.targetVx + i * 250) % (Wv + 400)) - 200;
+    const yPos = (i * 73) % Hv;
+    const len = 40 + (i * 19) % 60;
+    
+    ctx.globalAlpha = wind.intensity * (0.3 + (i%3)*0.2);
+    ctx.beginPath();
+    ctx.moveTo(xOffset, yPos);
+    ctx.lineTo(xOffset + len * Math.sign(wind.targetVx), yPos);
+    ctx.stroke();
+  }
+  ctx.restore();
+}  
 // === UI: RENDER FOREGROUND ===
 function drawForeground(now){
   for(const f of overgrowth){
@@ -1032,37 +1068,37 @@ function drawForeground(now){
         ctx.stroke();
       }
     } 
-    else if (f.type === 'branch') {
+ else if (f.type === 'branch') {
       ctx.rotate(f.ang);
       
-      // Shadow disconnects at one end to simulate elevation
-      ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 12; 
-      ctx.shadowOffsetX = 8; ctx.shadowOffsetY = 25; 
+      // FIX: Shadow now hugs the bottom of the log so it looks flat on the dirt
+      ctx.shadowColor = 'rgba(0,0,0,0.8)'; 
+      ctx.shadowBlur = 6; 
+      ctx.shadowOffsetX = 2; 
+      ctx.shadowOffsetY = 6; 
       
       ctx.strokeStyle = '#382210'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       
-      // Tapered Main Log
-      ctx.lineWidth = 22;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(0, 0); ctx.stroke();
-      ctx.lineWidth = 14;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      // Main Log
+      ctx.lineWidth = 20;
+      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
       
-      // Tapered Sub-branches
+      // Sub-branches (drawn with matching tight shadows)
       for(const sb of f.subBranches) {
-         ctx.lineWidth = 8;
-         ctx.beginPath(); ctx.moveTo(sb.lx, 0); 
-         ctx.quadraticCurveTo(sb.lx + 10, Math.sin(sb.ang)*20, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len); 
+         ctx.lineWidth = 9;
+         ctx.beginPath(); 
+         ctx.moveTo(sb.lx, 0); 
+         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*15, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len); 
          ctx.stroke();
       }
       
+      // Textured bark grooves and 3D top highlight
       ctx.shadowColor = 'transparent';
-      // Organic bark grooves
       ctx.strokeStyle = '#1f1107'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -3); ctx.lineTo(f.len/4, -2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-f.len/4, 3); ctx.lineTo(f.len/2 - 10, 4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -2); ctx.lineTo(f.len/4, -1); ctx.stroke();
       
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, -6); ctx.lineTo(f.len/2, -4); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-f.len/2, -4); ctx.lineTo(f.len/2, -4); ctx.stroke();
     }
     ctx.restore();
   }
@@ -1108,6 +1144,7 @@ function draw(now){
     drawSplats();
     drawHeists(now);
     for(const b of bugs) if(!b.squished) drawBug(b, now);
+    drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
     drawForeground(now);
     drawHudInCanvas();
     if(cine) drawCine(now);
