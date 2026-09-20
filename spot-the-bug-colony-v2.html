@@ -897,7 +897,7 @@ function draw(now){
     if (now < hitStopUntil) {
       ctx.save();
       ctx.globalAlpha = (hitStopUntil - now) / 150;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
       ctx.restore();
     }
