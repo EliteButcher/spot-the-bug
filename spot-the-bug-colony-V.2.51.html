@@ -1390,10 +1390,12 @@ function drawForeground(now){
           if(Math.random() > 0.7) {
               ctx.beginPath();
               ctx.arc(j, yBase + (Math.random() > 0.5 ? 4 : -4), 2, 0, Math.PI*2);
-              ctx.fill();
+             ctx.fill();
           }
       }
     }
+    ctx.restore();
+  }
 
   // 2. The Smooth Giant Leaf
   for(const gl of giantLeaves){
