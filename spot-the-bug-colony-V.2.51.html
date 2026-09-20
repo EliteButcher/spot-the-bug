@@ -211,6 +211,12 @@
 
 <script>
 (() => {
+  // === BACKGROUND CACHE ===
+  //Adding Different Backgrounds that will cycle based on level for the perception of user achievement and for "time tracking/progression tracking"
+const bgCanvas = document.createElement('canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let cachedRoundTheme = -1;
+  
 let gameNow=0, realLast=performance.now(), appAway=document.hidden, readUntil=0, tagUntil=0;
 let transition=null, cine=null, captureFx=null, hitStopUntil=0;
 // Object Perminance Terrain Overlays & Wind State
@@ -434,23 +440,24 @@ function rollOvergrowth(){
   const numGrass = 2 + Math.floor(Math.random()*2);
   for(let i=0; i<numGrass; i++){
     for(let tries=0; tries<40; tries++){
-      const r = 35 + Math.random()*15;
-      const x = 70 + r + Math.random()*(Wv - 140 - 2*r);
-      const y = 140 + r + Math.random()*(Hv - 240 - 2*r);
+      const r = 40 + Math.random()*20; // 10% larger radius
+      const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
+      const y = 90 + r + Math.random()*(Hv - 180 - 2*r);
       
       // FIX: Ensure grass doesn't spawn on top of pebbles
       const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
 
-      if(Math.hypot(x-nestX, y-nestY) > 100 && Math.hypot(x-sugarX, y-sugarY) > 100 && clearOfPebbles){
+      // Reduced nest/sugar avoidance radius to 85 to allow closer edge-spawning
+      if(Math.hypot(x-nestX, y-nestY) > 85 && Math.hypot(x-sugarX, y-sugarY) > 85 && clearOfPebbles){
         let blades = [];
-        for(let k=0; k<45; k++){
+        for(let k=0; k<65; k++){ // Increased density (65 blades instead of 45)
           blades.push({
-            ox: (Math.random()-0.5)*r * (0.6+Math.random()*0.4),
-            oy: (Math.random()-0.5)*r * 0.4,
-            an: -Math.PI/2 + (Math.random()-0.5)*0.8,
-            len: r * (0.6 + Math.random()*0.7),
-            hue: 60 + Math.random()*30,
-            lum: 25 + Math.random()*15,
+            ox: (Math.random()-0.5)*r * (0.7+Math.random()*0.3),
+            oy: (Math.random()-0.5)*r * 0.5,
+            an: -Math.PI/2 + (Math.random()-0.5)*0.7,
+            len: r * (0.4 + Math.random()*0.5), // Shorter blade height ratio
+            hue: 70 + Math.random()*25, // Slightly brighter, more vibrant greens
+            lum: 30 + Math.random()*20,
             sway: Math.random()*Math.PI*2
           });
         }
@@ -612,11 +619,10 @@ function update(dt, now){
 
     if(!frozen) {
       wind.vx = wind.targetVx * wind.intensity;
-
-      // Ant Drifting: Significantly toned down so it's a gentle struggle, not a hurricane
+      // Ant Drifting: Force is squared (multiplied by intensity twice) so momentum dies rapidly
       for(const b of bugs) {
           if(!b.squished) {
-              b.x += wind.vx * dt * 1.5; 
+              b.x += wind.vx * wind.intensity * dt * 1.5; 
               b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5; 
           }
       }
@@ -649,26 +655,27 @@ function update(dt, now){
     
     const progress = gl.t / (gl.duration / 1000);
     const dir = Math.sign(wind.targetVx);
-    const startX = dir > 0 ? -300 : Wv + 300;
-    const endX = dir > 0 ? Wv + 400 : -400;
+   // Stretch the start and end points so the leaf travels a further distance faster
+    const startX = dir > 0 ? -400 : Wv + 400;
+    const endX = dir > 0 ? Wv + 600 : -600;
     
     const linearX = startX + (endX - startX) * progress;
     
     if (wind.pattern === 0) { 
         gl.x = linearX;
-        gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 120;
-        gl.ang = Math.sin(progress * Math.PI * 2) * 1.2 + gl.rot * dt; // Lazy Wave / Wobble
+        gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 150;
+        gl.ang = Math.sin(progress * Math.PI * 2) * 1.2 + gl.rot * dt;  // Lazy Wave / Wooble
     } else if (wind.pattern === 1) { 
         gl.x = linearX;
-        gl.y = gl.startY + Math.sin(progress * Math.PI) * 250;
-        gl.ang = Math.sin(progress * Math.PI * 1.5) * 1.5 + gl.rot * dt; // Deep Swoop / Deep Tilt
+        gl.y = gl.startY + Math.sin(progress * Math.PI) * 300;
+        gl.ang = Math.sin(progress * Math.PI * 1.5) * 1.5 + gl.rot * dt;   // Depp Swoop / Deep Tilt
     } else { 
-        gl.x = linearX - Math.sin(progress * Math.PI * 4) * 180 * dir;
-        gl.y = gl.startY - Math.cos(progress * Math.PI * 4) * 150 + 150; 
-        gl.ang = progress * Math.PI * 4 * dir; // FIX: Does two full physical barrel rolls through the Loop-de-loop
+        // Reduced the X-axis drag from 180 to 90 so it doesn't stall in place
+        gl.x = linearX - Math.sin(progress * Math.PI * 4) * 90 * dir;
+        gl.y = gl.startY - Math.cos(progress * Math.PI * 4) * 200 + 200; 
+        gl.ang = progress * Math.PI * 4 * dir;   // Two full barrel rolls through the loop-de-loop
     }
     
-    // FIX: Restored the robust off-screen splice check
     if(progress >= 1.2 || (wind.targetVx > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
         giantLeaves.splice(i, 1);
     }
@@ -892,22 +899,57 @@ function drawBug(b, now){
 
   ctx.restore();
 }
+// === PROCEDURAL TERRAIN GENERATOR ===
+// Renders the background once per theme change to save processing power
+function generateBackground(Wv, Hv, themeIndex) {
+  bgCanvas.width = Wv; bgCanvas.height = Hv;
+  
+  // 0: Coarse Dirt, 1: Smooth Dirt, 2: Clay, 3: Sand
+  const themes = [
+    { base: '#131512', glow: 'rgba(0,0,0,0.6)', gritDark: 'rgba(0,0,0,0.5)', gritLight: 'rgba(255,255,255,0.03)', density: 7000 },
+    { base: '#2b1f16', glow: 'rgba(20,10,5,0.5)', gritDark: 'rgba(0,0,0,0.2)', gritLight: 'rgba(255,255,255,0.02)', density: 2500 },
+    { base: '#4a2511', glow: 'rgba(30,10,0,0.5)', gritDark: 'rgba(40,10,0,0.5)', gritLight: 'rgba(255,150,100,0.05)', density: 4500 },
+    { base: '#c2a578', glow: 'rgba(120,90,40,0.2)', gritDark: 'rgba(100,70,30,0.3)', gritLight: 'rgba(255,255,255,0.2)', density: 12000 }
+  ];
+  const t = themes[themeIndex];
 
+  // 1. Solid Base
+  bgCtx.fillStyle = t.base;
+  bgCtx.fillRect(0, 0, Wv, Hv);
+
+  // 2. Ambient Vignette/Glow
+  const bgGlow = bgCtx.createRadialGradient(Wv/2, Hv/2, 50, Wv/2, Hv/2, Math.max(Wv, Hv)*0.8);
+  bgGlow.addColorStop(0, 'rgba(255,255,255,0.02)');
+  bgGlow.addColorStop(1, t.glow);
+  bgCtx.fillStyle = bgGlow;
+  bgCtx.fillRect(0, 0, Wv, Hv);
+
+  // 3. Arcade Grid (Adapts to sand so it stays visible)
+  bgCtx.strokeStyle = themeIndex === 3 ? 'rgba(255,255,255,0.1)' : 'rgba(57,217,138,0.04)';
+  bgCtx.lineWidth = 1;
+  for(let x=0; x<Wv; x+=40){ bgCtx.beginPath(); bgCtx.moveTo(x,0); bgCtx.lineTo(x,Hv); bgCtx.stroke(); }
+
+  // 4. Procedural Grit / Noise (The Sand/Dirt particles)
+  for(let i=0; i<t.density; i++) {
+    const px = Math.random() * Wv;
+    const py = Math.random() * Hv;
+    bgCtx.fillStyle = Math.random() > 0.6 ? t.gritLight : t.gritDark;
+    const size = Math.random() > 0.85 ? 2 : 1; 
+    bgCtx.fillRect(px, py, size, size);
+  }
+}
+// === END TERRAIN GENERATOR ===
 function drawDecor(){
   const Wv=cv.clientWidth, Hv=cv.clientHeight;
-
-  // DIRT BACKGROUND
-  ctx.fillStyle = '#101412';
-  ctx.fillRect(0,0,Wv,Hv);
-  const bgGlow = ctx.createRadialGradient(Wv/2, Hv/2, 50, Wv/2, Hv/2, Math.max(Wv, Hv)*0.8);
-  bgGlow.addColorStop(0, 'rgba(255,255,255,0.03)');
-  bgGlow.addColorStop(1, 'rgba(0,0,0,0.4)');
-  ctx.fillStyle = bgGlow;
-  ctx.fillRect(0,0,Wv,Hv);
-
-  ctx.strokeStyle='rgba(57,217,138,.03)';
-  ctx.lineWidth = 1;
-  for(let x=0;x<Wv;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,Hv); ctx.stroke(); }
+  // Theme logic: Changes every 3 rounds. Loops through 4 themes (0, 1, 2, 3)
+  const themeIndex = Math.floor((round - 1) / 3) % 4;
+  // Only rebuild the image if the round triggered a new theme, or if the screen resized
+  if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
+      generateBackground(Wv, Hv, themeIndex);
+      cachedRoundTheme = themeIndex;
+  }
+  // Stamp the cached background image onto the screen
+  ctx.drawImage(bgCanvas, 0, 0, Wv, Hv);
 
   // NEST MOUND
   ctx.shadowColor = 'rgba(0,0,0,0.8)';
@@ -1126,6 +1168,7 @@ function drawForeground(now){
     ctx.save(); ctx.translate(f.x, f.y);
     
     if(f.type === 'grass') {
+      // Base dirt patch
       ctx.fillStyle = 'rgba(15,20,12,0.5)';
       ctx.beginPath();
       for(let i=0; i<8; i++) {
@@ -1137,8 +1180,8 @@ function drawForeground(now){
       ctx.fill();
       
       ctx.lineCap = 'round';
-    for(const b of f.blades){
-        let bend = wind.vx * 0.04; // 0.04 amount of grass bend
+      for(const b of f.blades){
+        let bend = wind.vx * 0.05; 
         let partAlpha = 1;
         const wx = f.x + b.ox, wy = f.y + b.oy;
 
@@ -1152,14 +1195,34 @@ function drawForeground(now){
         }
 
         const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
-        ctx.strokeStyle = `hsla(${b.hue}, 40%, ${b.lum}%, ${partAlpha})`;
+        
+        // Base color is bright (representing the sunlit tips)
+        ctx.strokeStyle = `hsla(${b.hue}, 50%, ${b.lum + 10}%, ${partAlpha})`;
         ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(b.ox, b.oy); 
-        ctx.quadraticCurveTo(b.ox + Math.cos(finalAn)*b.len*0.5, b.oy + Math.sin(finalAn)*b.len*0.5, 
-                             b.ox + Math.cos(finalAn)*b.len, b.oy + Math.sin(finalAn)*b.len); 
+        
+        // UPGRADED PHYSICS: Bezier Curve
+        // Base stays stiff (cp1), top half whips in the wind (cp2)
+        const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
+        const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
+        const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
+        const cp2y = b.oy + Math.sin(finalAn) * b.len * 0.8;
+        const endX = b.ox + Math.cos(finalAn) * b.len;
+        const endY = b.oy + Math.sin(finalAn) * b.len;
+
+        ctx.beginPath(); 
+        ctx.moveTo(b.ox, b.oy); 
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
         ctx.stroke();
       }
-    } 
+      
+      // ILLUSION GRADIENT: Dark overlay over the roots to create depth
+      const rootGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, f.r);
+      rootGrad.addColorStop(0, 'rgba(8, 12, 6, 0.7)');
+      rootGrad.addColorStop(0.5, 'rgba(8, 12, 6, 0.3)');
+      rootGrad.addColorStop(1, 'rgba(8, 12, 6, 0)');
+      ctx.fillStyle = rootGrad;
+      ctx.beginPath(); ctx.ellipse(0, 0, f.r, f.r*0.6, 0, 0, Math.PI*2); ctx.fill();
+    }
  else if (f.type === 'branch') {
       ctx.rotate(f.ang);
       
