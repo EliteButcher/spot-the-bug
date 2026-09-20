@@ -447,27 +447,48 @@ function rollOvergrowth(){
       // FIX: Ensure grass doesn't spawn on top of pebbles
       const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
 
-      // Reduced nest/sugar avoidance radius to 85 to allow closer edge-spawning
+      // Reduced avoidance radius to allow closer edge-spawning
       if(Math.hypot(x-nestX, y-nestY) > 85 && Math.hypot(x-sugarX, y-sugarY) > 85 && clearOfPebbles){
         let blades = [];
-        for(let k=0; k<65; k++){ // Increased density (65 blades instead of 45)
+        
+        // Define the organic shape of this specific patch
+        const spineAngle = Math.random() * Math.PI * 2;
+        const spineLen = r * (1.2 + Math.random()); // How long the swath stretches
+        const spineCurve = (Math.random() - 0.5) * r * 1.5; // How much it bends/sweeps
+        
+        for(let k=0; k<80; k++){ // High density to fill the new sweeping shapes
+          const t = Math.random(); // Pick a random spot along the spine (0 to 1)
+          
+          // Calculate the base coordinate along the curved spine
+          const sx = (t - 0.5) * spineLen;
+          const sy = Math.sin(t * Math.PI) * spineCurve;
+          
+          // Scatter the blade outward from the spine to give the patch thickness
+          const scatter = Math.random() * (r * 0.4); 
+          const ang = Math.random() * Math.PI * 2;
+          const lx = sx + Math.cos(ang) * scatter;
+          const ly = sy + Math.sin(ang) * scatter;
+          
           blades.push({
-            ox: (Math.random()-0.5)*r * (0.7+Math.random()*0.3),
-            oy: (Math.random()-0.5)*r * 0.5,
+            // Rotate the final scattered position by the spine's global angle
+            ox: lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle),
+            oy: lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle),
             an: -Math.PI/2 + (Math.random()-0.5)*0.7,
-            len: r * (0.4 + Math.random()*0.5), // Shorter blade height ratio
-            hue: 70 + Math.random()*25, // Slightly brighter, more vibrant greens
+            len: r * (0.4 + Math.random()*0.5), 
+            hue: 70 + Math.random()*25,
             lum: 30 + Math.random()*20,
             sway: Math.random()*Math.PI*2
           });
         }
-        overgrowth.push({ type: 'grass', x, y, r, blades });
+        
+        // Save the spine parameters so we can draw the dirt base underneath it
+        overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
         break;
       }
     }
   }
 
-  // 2. The Propped Branch
+ // 2. The Propped Branch (Curved & Organic)
   for(let tries=0; tries<40; tries++){
     const x = 100 + Math.random()*(Wv - 200);
     const y = 150 + Math.random()*(Hv - 300);
@@ -477,33 +498,42 @@ function rollOvergrowth(){
     if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110 && clearOfPebbles){
       const len = 160 + Math.random()*60;
       const ang = (Math.random()-0.5)*Math.PI;
+      const curveY = (Math.random()-0.5)*40; // The natural bend of the main stick
       
       let subBranches = [];
       let contactPoints = []; 
       
-      // Left end rests on the dirt. Right end rests on the rock. 
-      // We only create a physical ant-blocking node at the dirt end.
+      // Main log ground contact points
       contactPoints.push({ lx: -len/2, ly: 0, r: 12 });
+      contactPoints.push({ lx: len/2, ly: 0, r: 12 });
 
-      for(let b=0; b<3; b++) {
+      const numBranches = 3 + Math.floor(Math.random()*4); // 3 to 6 wild offshoots
+      for(let b=0; b<numBranches; b++) {
+         let rootX = (Math.random() - 0.5) * len * 0.8;
+         // Attach sub-branch to the parabolic curve of the main stick
+         let p = (rootX - (-len/2)) / len; 
+         let rootY = 4 * p * (1-p) * curveY; 
+
          let sb = {
-            lx: (Math.random() - 0.5) * len * 0.6,
-            ang: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.6),
-            len: 40 + Math.random()*50
+            lx: rootX,
+            ly: rootY,
+            ang: (Math.random() > 0.5 ? 1 : -1) * (0.2 + Math.random()*0.8),
+            len: 30 + Math.random()*50,
+            curve: (Math.random()-0.5)*30 // The bend of the twig itself
          };
          subBranches.push(sb);
          
-         // 60% chance a sub-branch tip touches the ground to form a tripod
-         if(Math.random() > 0.4) {
+         // 50% chance a sub-branch tip touches the ground
+         if(Math.random() > 0.5) {
              contactPoints.push({
                  lx: sb.lx + Math.cos(sb.ang)*sb.len,
-                 ly: Math.sin(sb.ang)*sb.len,
+                 ly: sb.ly + Math.sin(sb.ang)*sb.len,
                  r: 8
              });
          }
       }
       
-      overgrowth.push({ type: 'branch', x, y, ang, len, subBranches, contactPoints });
+      overgrowth.push({ type: 'branch', x, y, ang, len, curveY, subBranches, contactPoints });
       break;
     }
   }
@@ -1195,18 +1225,25 @@ function drawForeground(now){
   for(const f of overgrowth){
     ctx.save(); ctx.translate(f.x, f.y);
     
-    if(f.type === 'grass') {
-      // Base dirt patch
-      ctx.fillStyle = 'rgba(15,20,12,0.5)';
-      ctx.beginPath();
-      for(let i=0; i<8; i++) {
-         const a = i * Math.PI/4;
-         const rr = f.r * (0.7 + 0.2*Math.sin(i*2.1 + f.x)); 
-         if(i===0) ctx.moveTo(Math.cos(a)*rr, Math.sin(a)*rr*0.5); 
-         else ctx.lineTo(Math.cos(a)*rr, Math.sin(a)*rr*0.5);
-      }
-      ctx.fill();
+  if(f.type === 'grass') {
+      // 1. Organic Dirt Base (Thick stroke following the spine)
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(15,20,12,0.5)';
+      ctx.lineWidth = f.r * 0.8; // Creates the thick dirt bed
       
+      ctx.beginPath();
+      for (let t = 0; t <= 1; t += 0.1) {
+          const sx = (t - 0.5) * f.spineLen; 
+          const sy = Math.sin(t * Math.PI) * f.spineCurve; 
+          const ox = sx * Math.cos(f.spineAngle) - sy * Math.sin(f.spineAngle);
+          const oy = sx * Math.sin(f.spineAngle) + sy * Math.cos(f.spineAngle);
+          if (t === 0) ctx.moveTo(ox, oy);
+          else ctx.lineTo(ox, oy);
+      }
+      ctx.stroke();
+      
+      // 2. Draw Blades (The exact same beautiful bezier math we built earlier)
       ctx.lineCap = 'round';
       for(const b of f.blades){
         let bend = wind.vx * 0.05; 
@@ -1224,12 +1261,9 @@ function drawForeground(now){
 
         const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
         
-        // Base color is bright (representing the sunlit tips)
         ctx.strokeStyle = `hsla(${b.hue}, 50%, ${b.lum + 10}%, ${partAlpha})`;
         ctx.lineWidth = 2.5;
         
-        // UPGRADED PHYSICS: Bezier Curve
-        // Base stays stiff (cp1), top half whips in the wind (cp2)
         const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
         const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
         const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
@@ -1243,18 +1277,26 @@ function drawForeground(now){
         ctx.stroke();
       }
       
-      // ILLUSION GRADIENT: Dark overlay over the roots to create depth
-      const rootGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, f.r);
-      rootGrad.addColorStop(0, 'rgba(8, 12, 6, 0.7)');
-      rootGrad.addColorStop(0.5, 'rgba(8, 12, 6, 0.3)');
-      rootGrad.addColorStop(1, 'rgba(8, 12, 6, 0)');
-      ctx.fillStyle = rootGrad;
-      ctx.beginPath(); ctx.ellipse(0, 0, f.r, f.r*0.6, 0, 0, Math.PI*2); ctx.fill();
+      // 3. ILLUSION GRADIENT: Dark overlay over the roots for depth
+      // We trace the exact same spine again, but with a thinner, darker stroke to fake ambient occlusion
+      ctx.strokeStyle = 'rgba(8, 12, 6, 0.6)';
+      ctx.lineWidth = f.r * 0.4; 
+      
+      ctx.beginPath();
+      for (let t = 0; t <= 1; t += 0.1) {
+          const sx = (t - 0.5) * f.spineLen; 
+          const sy = Math.sin(t * Math.PI) * f.spineCurve; 
+          const ox = sx * Math.cos(f.spineAngle) - sy * Math.sin(f.spineAngle);
+          const oy = sx * Math.sin(f.spineAngle) + sy * Math.cos(f.spineAngle);
+          if (t === 0) ctx.moveTo(ox, oy);
+          else ctx.lineTo(ox, oy);
+      }
+      ctx.stroke();
     }
  else if (f.type === 'branch') {
       ctx.rotate(f.ang);
       
-      // 1. Draw a support rock first (grounds the elevation visually)
+      // 1. Draw Support Rock
       ctx.shadowColor = 'rgba(0,0,0,0.6)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 4;
@@ -1263,66 +1305,95 @@ function drawForeground(now){
       ctx.fillStyle = '#48565c';
       ctx.beginPath(); ctx.ellipse(f.len/2 - 12, 3, 12, 6, 0.5, 0, Math.PI*2); ctx.fill();
       
-      // 2. Custom 3D Arced Shadow
+      // 2. 3D Arced Shadow
       ctx.shadowColor = 'transparent'; 
       ctx.save();
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineCap = 'round'; 
-      ctx.lineWidth = 18;
       
-      // Shadow starts pinched on the ground at the left, drops down in the middle, 
-      // and ends disconnected on the right (where the rock props it up)
+      ctx.lineWidth = 18;
       ctx.beginPath(); 
-      ctx.moveTo(-f.len/2, 0); 
-      ctx.quadraticCurveTo(0, 30, f.len/2, 25); 
+      ctx.moveTo(-f.len/2, 10); 
+      ctx.quadraticCurveTo(0, f.curveY + 35, f.len/2, 10); 
       ctx.stroke();
       
       for(const sb of f.subBranches) {
          ctx.lineWidth = 8;
          ctx.beginPath(); 
-         
-         // Calculate a rough shadow starting drop based on where it attaches to the main log
-         const startDrop = (sb.lx + f.len/2) / f.len * 25; 
-         ctx.moveTo(sb.lx, startDrop);
-         
-         // Curve back up to pinch perfectly at the tip where it touches the ground
-         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*10 + startDrop, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len);
+         ctx.moveTo(sb.lx, sb.ly + 10);
+         const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+         const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+         const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+         const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+         ctx.quadraticCurveTo(cpX, cpY + 20, endX, endY + 5);
          ctx.stroke();
       }
       ctx.restore();
       
       // 3. Draw the Actual Wood
-      ctx.strokeStyle = '#382210'; 
-      ctx.lineCap = 'butt'; // No more balloon-animal round edges
+      ctx.lineCap = 'round'; 
+      ctx.lineJoin = 'round';
       
-      // Main Log
-      ctx.lineWidth = 20;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      ctx.strokeStyle = '#2d1b0f';
+      ctx.lineWidth = 14;
+      ctx.beginPath(); 
+      ctx.moveTo(-f.len/2, 0); 
+      ctx.quadraticCurveTo(0, f.curveY, f.len/2, 0); 
+      ctx.stroke();
       
-      // Sub-branches
       for(const sb of f.subBranches) {
-         ctx.lineWidth = 9;
+         ctx.lineWidth = 7;
          ctx.beginPath(); 
-         ctx.moveTo(sb.lx, 0); 
-         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*15, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len); 
+         ctx.moveTo(sb.lx, sb.ly); 
+         const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+         const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+         const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+         const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+         ctx.quadraticCurveTo(cpX, cpY, endX, endY); 
+         ctx.stroke();
+      }
+
+      // 4. Tapering Layers
+      ctx.strokeStyle = '#4a2f1d';
+      ctx.lineWidth = 8;
+      ctx.beginPath(); 
+      ctx.moveTo(-f.len/2 + 2, 0); 
+      ctx.quadraticCurveTo(0, f.curveY, f.len/2 - 2, 0); 
+      ctx.stroke();
+
+      for(const sb of f.subBranches) {
+         ctx.lineWidth = 4;
+         ctx.beginPath(); 
+         ctx.moveTo(sb.lx, sb.ly); 
+         const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+         const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+         const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+         const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+         ctx.quadraticCurveTo(cpX, cpY, endX, endY); 
          ctx.stroke();
       }
       
-      // 4. Splintered Ends (Jagged shapes to break up the flat edges)
-      ctx.fillStyle = '#e6c898'; // Light interior wood color
-      ctx.beginPath(); ctx.moveTo(-f.len/2, -10); ctx.lineTo(-f.len/2 - 8, -5); ctx.lineTo(-f.len/2, 2); ctx.lineTo(-f.len/2 - 5, 8); ctx.lineTo(-f.len/2, 10); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(f.len/2, -10); ctx.lineTo(f.len/2 + 6, -3); ctx.lineTo(f.len/2, 4); ctx.lineTo(f.len/2 + 9, 10); ctx.lineTo(f.len/2, 10); ctx.fill();
-      
-      // 5. Bark Texture & Highlights
-      ctx.strokeStyle = '#1f1107'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -3); ctx.lineTo(f.len/4, -2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-f.len/4, 4); ctx.lineTo(f.len/2 - 15, 3); ctx.stroke();
-      
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(-f.len/2 + 5, -8); ctx.lineTo(f.len/2 - 5, -8); ctx.stroke();
+      // 5. Organic Bark Texture & Knots
+      ctx.fillStyle = '#1a0f08';
+      ctx.strokeStyle = '#1f1107'; 
+      ctx.lineWidth = 1.5;
+
+      for (let j = -f.len/2 + 10; j < f.len/2 - 10; j += 15) {
+          let p = (j - (-f.len/2)) / f.len;
+          let yBase = 4 * p * (1-p) * f.curveY;
+          
+          ctx.beginPath(); 
+          ctx.moveTo(j, yBase - 3 + Math.random()*2); 
+          ctx.lineTo(j + 10 + Math.random()*15, yBase - 3 + (Math.random()-0.5)*4); 
+          ctx.stroke();
+          
+          if(Math.random() > 0.7) {
+              ctx.beginPath();
+              ctx.arc(j, yBase + (Math.random() > 0.5 ? 4 : -4), 2, 0, Math.PI*2);
+              ctx.fill();
+          }
+      }
     }
-    ctx.restore();
-  }
 
   // 2. The Smooth Giant Leaf
   for(const gl of giantLeaves){
@@ -1530,24 +1601,32 @@ cv.addEventListener('pointerdown', e=>{
   // === INTERACTION: BRANCH CLICK-BLOCKER ===
   for (const f of overgrowth) {
       if (f.type === 'branch') {
-          // Check Main Log
-          const x1 = f.x + Math.cos(f.ang)*(-f.len/2), y1 = f.y + Math.sin(f.ang)*(-f.len/2);
-          const x2 = f.x + Math.cos(f.ang)*(f.len/2),  y2 = f.y + Math.sin(f.ang)*(f.len/2);
-          if (distToSegment(x, y, x1, y1, x2, y2) < 14) {
+          // Check left-to-middle segment
+          const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
+          const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+          const xMid = f.x - Math.sin(f.ang)*(f.curveY);
+          const yMid = f.y + Math.cos(f.ang)*(f.curveY);
+          // Check middle-to-right segment
+          const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
+          const y2 = f.y + Math.sin(f.ang)*(f.len/2);
+          
+          if (distToSegment(x, y, x1, y1, xMid, yMid) < 16 || distToSegment(x, y, xMid, yMid, x2, y2) < 16) {
               flashTag('Blocked by the wood!', '#ffb347'); return;
           }
-          // Check Sub-Branches
+          // Check Sub-Branches (with curved root offsets)
           for (const sb of f.subBranches) {
-              const sx1 = f.x + Math.cos(f.ang)*sb.lx, sy1 = f.y + Math.sin(f.ang)*sb.lx;
-              const sx2 = sx1 + Math.cos(f.ang + sb.ang)*sb.len, sy2 = sy1 + Math.sin(f.ang + sb.ang)*sb.len;
-              if (distToSegment(x, y, sx1, sy1, sx2, sy2) < 8) {
+              const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly; 
+              const sy1 = f.y + Math.sin(f.ang)*sb.lx + Math.cos(f.ang)*sb.ly;
+              const sx2 = sx1 + Math.cos(f.ang + sb.ang)*sb.len; 
+              const sy2 = sy1 + Math.sin(f.ang + sb.ang)*sb.len;
+              
+              if (distToSegment(x, y, sx1, sy1, sx2, sy2) < 10) {
                   flashTag('Blocked by the wood!', '#ffb347'); return;
               }
           }
       }
   }
   // === END BRANCH CLICK-BLOCKER ===
-
   let best=null,bd=1e9;
   for(const b of bugs){ if(b.squished) continue; const d=(b.x-x)**2+(b.y-y)**2; if(d<bd){bd=d;best=b;} }
   if(bugBug && !bugBug.squished){
