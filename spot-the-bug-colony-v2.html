@@ -563,45 +563,51 @@ function update(dt, now){
  // === WIND PHYSICS ENGINE ===
   if(!frozen && now > nextWindAt) {
     wind.active = true;
-    wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (12 + Math.random() * 10);
-    wind.timer = now + 5000 + Math.random() * 2000; // Wind lasts 5-7 seconds total
+    wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (18 + Math.random() * 10); 
     wind.leafDropped = false;
-    wind.intensity = 0; // Smooth build-up
-    nextWindAt = now + 30000 + Math.random() * 20000; 
+    wind.intensity = 0;
+    nextWindAt = now + 25000 + Math.random() * 15000; 
   }
 
   if(wind.active) {
-    // Smoothly ramp wind intensity up and down so it doesn't snap
-    const timeLeft = wind.timer - now;
-    if (timeLeft < 1000) {
-      wind.intensity = Math.max(0, wind.intensity - dt * 2); // Fade out
+    // Keep wind blowing as long as the leaf hasn't dropped, OR the leaf is currently on screen
+    if (!wind.leafDropped || giantLeaves.length > 0) {
+        wind.intensity = Math.min(1, wind.intensity + dt * 1.5); // Fade in
     } else {
-      wind.intensity = Math.min(1, wind.intensity + dt * 1.5); // Fade in
+        wind.active = false; // Leaf has left the screen, kill the wind
     }
-    wind.vx = wind.targetVx * wind.intensity;
 
-    if(now > wind.timer) {
-      wind.active = false;
-    } else if(!frozen) {
-      // Gently nudge ants in the direction of the wind based on current intensity
-      for(const b of bugs) if(!b.squished) b.x += wind.vx * dt * 0.3;
+    if(!frozen) {
+      wind.vx = wind.targetVx * wind.intensity;
+
+      // Ant Drifting: Increased multiplier and added vertical flutter so it's noticeable
+      for(const b of bugs) {
+          if(!b.squished) {
+              b.x += wind.vx * dt * 2.5; 
+              b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 15; 
+          }
+      }
       
-      // Drop the leaf 1.75 seconds AFTER wind starts blowing as a warning cue
+      // Drop the leaf AFTER the wind intensity is high enough
       if(!wind.leafDropped && wind.intensity > 0.8) {
         wind.leafDropped = true;
         giantLeaves.push({
-          x: wind.vx > 0 ? -250 : Wv + 250,
-          y: Hv * 0.2 + (Math.random()-0.5)*80,
-          t: 0, duration: 3500 + Math.random()*1500,
-          vx: wind.vx * 35,
+          x: wind.vx > 0 ? -300 : Wv + 300,
+          y: Hv * 0.3 + (Math.random()-0.5)*100,
+          startY: Hv * 0.3 + (Math.random()-0.5)*100,
+          t: 0, 
+          duration: 4000 + Math.random()*2000, 
+          vx: wind.vx * 30, 
           scale: Math.min(Wv, Hv) * 0.85,
           hue: 15 + Math.random()*25,
-          rot: (Math.random()-0.5) * 2.5
+          rot: (Math.random()-0.5) * 4
         });
       }
     }
   } else {
-    wind.intensity = Math.max(0, wind.intensity - dt * 2);
+    // Rapid decay when wind dies so the grass bounces back up quickly
+    wind.intensity = Math.max(0, wind.intensity - dt * 3.5);
+    wind.vx = wind.targetVx * wind.intensity;
   }
 
   // Calculate Leaf Flight Path
@@ -611,10 +617,15 @@ function update(dt, now){
     
     const progress = gl.t / (gl.duration / 1000);
     gl.x += gl.vx * dt;
-    gl.y += Math.sin(progress * Math.PI * 4) * 100 * dt; 
-    gl.ang = Math.sin(progress * Math.PI * 2) * 0.6 + gl.rot * dt;
     
-    if(progress >= 1 || gl.x < -400 || gl.x > Wv + 400) giantLeaves.splice(i, 1);
+    // Majestic flight path: Deep plunging loops instead of a simple up/down bob
+    gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 220 + Math.cos(progress * Math.PI * 4) * 80; 
+    gl.ang = Math.sin(progress * Math.PI * 2.5) * 1.2 + gl.rot * dt;
+    
+    // Splice leaf if it finishes its duration or goes far off screen
+    if(progress >= 1.2 || (wind.targetVx > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
+        giantLeaves.splice(i, 1);
+    }
   }
   // === END WIND PHYSICS ===
   const left = 1-(now-roundStart)/roundLen;
@@ -1010,30 +1021,51 @@ function drawHudInCanvas(){
   ctx.textAlign='start';
 }
 // === Draw Wind===
-  // Draws subtle, semi-transparent wind lines across the screen when a gust is active
+// === UI: RENDER WIND STREAKS ===
+// Draws swirly, overlapping wind gusts based on reference illustrations
 function drawWindStreaks(now, Wv, Hv){
-  if(wind.intensity <= 0.05) return;
+  if(wind.intensity <= 0.01) return;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; // Higher opacity for visibility
+  ctx.lineWidth = 3;
   ctx.lineCap = 'round';
-  
-  const lineCount = 12;
-  for(let i=0; i<lineCount; i++){
-    // Offset lines based on time and index so they stream across continuously
-    const speedMultiplier = 150 + (i * 37) % 100;
-    const xOffset = ((now * 0.5 * wind.targetVx + i * 250) % (Wv + 400)) - 200;
-    const yPos = (i * 73) % Hv;
-    const len = 40 + (i * 19) % 60;
-    
-    ctx.globalAlpha = wind.intensity * (0.3 + (i%3)*0.2);
+
+  // Draw 5 distinct, swirly wind gusts that pan across the screen
+  for(let i=0; i<5; i++){
+    // Pan the wind streaks based on wind speed and time
+    const pan = (now * wind.targetVx * 0.4 + i * 400) % (Wv + 800) - 400;
+    const dir = Math.sign(wind.targetVx);
+    const yBase = (i * 180) % (Hv - 100) + 100;
+
+    ctx.globalAlpha = wind.intensity * (0.2 + (i%2)*0.3);
     ctx.beginPath();
-    ctx.moveTo(xOffset, yPos);
-    ctx.lineTo(xOffset + len * Math.sign(wind.targetVx), yPos);
+    ctx.moveTo(pan, yBase);
+
+    if (i % 2 === 0) {
+        // Swooping S-Curve
+        ctx.bezierCurveTo(
+           pan + 150 * dir, yBase - 80,
+           pan + 250 * dir, yBase + 100,
+           pan + 400 * dir, yBase - 20
+        );
+    } else {
+        // Loop-de-loop
+        ctx.bezierCurveTo(
+            pan + 200 * dir, yBase - 150,
+            pan + 300 * dir, yBase + 150,
+            pan + 150 * dir, yBase + 50
+        );
+        ctx.bezierCurveTo(
+            pan + 50 * dir, yBase - 50,
+            pan + 150 * dir, yBase - 100,
+            pan + 350 * dir, yBase - 20
+        );
+    }
     ctx.stroke();
   }
   ctx.restore();
-}  
+}
+// === END RENDER WIND STREAKS ===
 // === UI: RENDER FOREGROUND ===
 function drawForeground(now){
   for(const f of overgrowth){
