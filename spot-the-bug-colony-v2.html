@@ -213,6 +213,8 @@
 (() => {
 let gameNow=0, realLast=performance.now(), appAway=document.hidden, readUntil=0, tagUntil=0;
 let transition=null, cine=null, captureFx=null, hitStopUntil=0;
+// Object Perminance Terrain Overlays
+let floatingTexts = [], overgrowth = [], leaves = [], nextLeafAt = 0;
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const tag = document.getElementById('tag'), banner = document.getElementById('banner');
 const $r = document.getElementById('r'), $s = document.getElementById('s'), $hi = document.getElementById('hi');
@@ -343,6 +345,7 @@ function spawn(){
     sugarX = 90 + Math.random()*(Wv-180);
     nestY = 92; sugarY = Hv-52;
     rollPebbles();
+    rollOvergrowth();
   }
   keepGarden=false;
   trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
@@ -386,7 +389,38 @@ function rollPebbles(){
     }
   }
 }
+function rollOvergrowth(){
+  overgrowth=[];
+  const Wv = cv.clientWidth, Hv = cv.clientHeight;
+  
+  // 1. Spawn 2 to 3 dense Grass Patches
+  const numGrass = 2 + Math.floor(Math.random()*2);
+  for(let i=0; i<numGrass; i++){
+    for(let tries=0; tries<40; tries++){
+      const r = 30 + Math.random()*15;
+      const x = 70 + r + Math.random()*(Wv - 140 - 2*r);
+      const y = 140 + r + Math.random()*(Hv - 240 - 2*r);
+      if(Math.hypot(x-nestX, y-nestY) > 100 && Math.hypot(x-sugarX, y-sugarY) > 100){
+        overgrowth.push({ type: 'grass', x, y, r });
+        break;
+      }
+    }
+  }
 
+  // 2. Spawn 1 Twig Bridge
+  for(let tries=0; tries<40; tries++){
+    const x = 100 + Math.random()*(Wv - 200);
+    const y = 150 + Math.random()*(Hv - 300);
+    if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110){
+      overgrowth.push({ 
+        type: 'twig', x, y, 
+        ang: (Math.random()-0.5)*Math.PI, 
+        len: 120 + Math.random()*60 
+      });
+      break;
+    }
+  }
+}
 function targetFor(b){
   const Wv=cv.clientWidth, Hv=cv.clientHeight;
   return b.phase==='toNest' ? {x:nestX, y:nestY} : {x:sugarX, y:sugarY};
@@ -881,7 +915,63 @@ function drawHudInCanvas(){
   ctx.fillRect(10, 34, (Wv-20)*left, 8);
   ctx.textAlign='start';
 }
+function drawForeground(now){
+  // 1. Static Overgrowth (Grass & Twigs)
+  for(const f of overgrowth){
+    ctx.save(); ctx.translate(f.x, f.y);
+    
+    if(f.type === 'grass') {
+      // Dark dirt base
+      ctx.fillStyle = 'rgba(20,30,15,0.8)';
+      ctx.beginPath(); ctx.ellipse(0, 0, f.r, f.r*0.6, 0, 0, Math.PI*2); ctx.fill();
+      
+      // 30 overlapping arched blades
+      ctx.lineCap = 'round';
+      for(let k=0; k<30; k++){
+        const baseOffset = (Math.random()-0.5)*f.r;
+        const an = -Math.PI/2 + (Math.random()-0.5)*1.2; 
+        const len = f.r * (0.8 + Math.random()*0.6);
+        
+        ctx.strokeStyle = `hsl(${100 + Math.random()*30}, 60%, ${20 + Math.random()*20}%)`;
+        ctx.lineWidth = 2 + Math.random()*2;
+        
+        ctx.beginPath(); 
+        ctx.moveTo(baseOffset, f.r*0.3); 
+        ctx.quadraticCurveTo(baseOffset + Math.cos(an)*len*0.5, f.r*0.3 + Math.sin(an)*len*0.5, 
+                             baseOffset + Math.cos(an)*len, f.r*0.3 + Math.sin(an)*len); 
+        ctx.stroke();
+      }
+    } 
+    else if (f.type === 'twig') {
+      ctx.rotate(f.ang);
+      ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 18;
+      
+      ctx.strokeStyle = '#3a2411'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#261608'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -2); ctx.lineTo(f.len/2 - 10, -3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-f.len/2 + 20, 3); ctx.lineTo(f.len/2 - 15, 2); ctx.stroke();
+      
+      ctx.strokeStyle = '#3a2411'; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(-f.len*0.1, 0); ctx.quadraticCurveTo(0, -20, 20, -25); ctx.stroke();
+    }
+    ctx.restore();
+  }
 
+  // 2. Dynamic Leaves (This will just be safely skipped until we add the leaf physics later)
+  for(const l of leaves){
+    ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.ang);
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 15; 
+    ctx.shadowOffsetX = 10; ctx.shadowOffsetY = 20;
+    ctx.fillStyle = `hsl(${l.hue}, 70%, 45%)`;
+    ctx.beginPath(); ctx.moveTo(0, -18); ctx.quadraticCurveTo(15, -10, 0, 18); ctx.quadraticCurveTo(-15, -10, 0, -18); ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(0, -14); ctx.stroke();
+    ctx.restore();
+  }
+}
 function draw(now){
   document.getElementById('frame').classList.toggle('cinematic',state==='cine');
   if(!lifeFx)document.getElementById('celebrate').style.display='none';
@@ -891,6 +981,7 @@ function draw(now){
     drawSplats();
     drawHeists(now);
     for(const b of bugs) if(!b.squished) drawBug(b, now);
+    drawForeground(now);
     drawHudInCanvas();
     if(cine) drawCine(now);
     if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
