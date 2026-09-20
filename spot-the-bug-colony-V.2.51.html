@@ -472,7 +472,6 @@ function rollOvergrowth(){
     const x = 100 + Math.random()*(Wv - 200);
     const y = 150 + Math.random()*(Hv - 300);
     
-    // FIX: Ensure the branch doesn't spawn on top of pebbles
     const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + 40);
 
     if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110 && clearOfPebbles){
@@ -480,15 +479,31 @@ function rollOvergrowth(){
       const ang = (Math.random()-0.5)*Math.PI;
       
       let subBranches = [];
+      let contactPoints = []; 
+      
+      // Left end rests on the dirt. Right end rests on the rock. 
+      // We only create a physical ant-blocking node at the dirt end.
+      contactPoints.push({ lx: -len/2, ly: 0, r: 12 });
+
       for(let b=0; b<3; b++) {
-         subBranches.push({
+         let sb = {
             lx: (Math.random() - 0.5) * len * 0.6,
             ang: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.6),
             len: 40 + Math.random()*50
-         });
+         };
+         subBranches.push(sb);
+         
+         // 60% chance a sub-branch tip touches the ground to form a tripod
+         if(Math.random() > 0.4) {
+             contactPoints.push({
+                 lx: sb.lx + Math.cos(sb.ang)*sb.len,
+                 ly: Math.sin(sb.ang)*sb.len,
+                 r: 8
+             });
+         }
       }
       
-      overgrowth.push({ type: 'branch', x, y, ang, len, subBranches });
+      overgrowth.push({ type: 'branch', x, y, ang, len, subBranches, contactPoints });
       break;
     }
   }
@@ -693,6 +708,19 @@ function obstacles(){
   if(obstacleCache) return obstacleCache;
   const cr=cv.getBoundingClientRect();
   const obs=pebbles.map(p=>({...p,r:p.r+13})).concat(splats.map(p=>({...p,r:23})));
+  
+  // Inject branch contact points into the physics grid
+  for(const f of overgrowth) {
+      if(f.type === 'branch' && f.contactPoints) {
+          for(const cp of f.contactPoints) {
+              // 2D Rotation Matrix to convert local stick coordinates to global canvas coordinates
+              const gx = f.x + Math.cos(f.ang)*cp.lx - Math.sin(f.ang)*cp.ly;
+              const gy = f.y + Math.sin(f.ang)*cp.lx + Math.cos(f.ang)*cp.ly;
+              obs.push({x: gx, y: gy, r: cp.r + 10}); 
+          }
+      }
+  }
+
   for(const el of [btnScan,btnFrz,document.getElementById('t-ernie')]){
     if(getComputedStyle(el).display==='none') continue;
     const r=el.getBoundingClientRect(); obs.push({x:r.left-cr.left+r.width/2,y:r.top-cr.top+r.height/2,r:r.width/2+20});
@@ -1235,19 +1263,30 @@ function drawForeground(now){
       ctx.fillStyle = '#48565c';
       ctx.beginPath(); ctx.ellipse(f.len/2 - 12, 3, 12, 6, 0.5, 0, Math.PI*2); ctx.fill();
       
-      // 2. Custom Skewed Shadow
-      // We turn off native shadows and draw a stretched black silhouette to fake 3D elevation
+      // 2. Custom 3D Arced Shadow
       ctx.shadowColor = 'transparent'; 
       ctx.save();
-      ctx.transform(1, 0, -0.2, 1, -5, 15); // Skews the shadow away from the wood
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-      ctx.lineCap = 'butt'; 
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineCap = 'round'; 
       ctx.lineWidth = 18;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      
+      // Shadow starts pinched on the ground at the left, drops down in the middle, 
+      // and ends disconnected on the right (where the rock props it up)
+      ctx.beginPath(); 
+      ctx.moveTo(-f.len/2, 0); 
+      ctx.quadraticCurveTo(0, 30, f.len/2, 25); 
+      ctx.stroke();
+      
       for(const sb of f.subBranches) {
          ctx.lineWidth = 8;
-         ctx.beginPath(); ctx.moveTo(sb.lx, 0);
-         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*15, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len);
+         ctx.beginPath(); 
+         
+         // Calculate a rough shadow starting drop based on where it attaches to the main log
+         const startDrop = (sb.lx + f.len/2) / f.len * 25; 
+         ctx.moveTo(sb.lx, startDrop);
+         
+         // Curve back up to pinch perfectly at the tip where it touches the ground
+         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*10 + startDrop, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len);
          ctx.stroke();
       }
       ctx.restore();
@@ -1461,11 +1500,21 @@ function startRound(){
   flashTag(anom && anom.hint ? (round===1 ? 'TUTORIAL: '+anom.hint : (round===2||round===3 ? anom.hint : '')) : '', '#ffb347', true);
 }
 
+// === MATH HELPER: Point to Line Segment Distance ===
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const l2 = (x2-x1)**2 + (y2-y1)**2;
+  if (l2 === 0) return Math.hypot(px-x1, py-y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
+
 let clickGuard=0;
 cv.addEventListener('pointerdown', e=>{
   if(state!=='play') return;
   const rect=cv.getBoundingClientRect();
   const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  
   // === INTERACTION: LEAF CLICK-BLOCKER ===
   // If the user taps while a giant leaf is over the colony, calculate if the tap hit the leaf.
   // The leaf's collision radius is roughly 40% of its visual scale.  //SHAUN --> I wonder if this will be okay. 40%?
@@ -1477,6 +1526,28 @@ cv.addEventListener('pointerdown', e=>{
       }
   }
   // === END CLICK-BLOCKER ===
+
+  // === INTERACTION: BRANCH CLICK-BLOCKER ===
+  for (const f of overgrowth) {
+      if (f.type === 'branch') {
+          // Check Main Log
+          const x1 = f.x + Math.cos(f.ang)*(-f.len/2), y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+          const x2 = f.x + Math.cos(f.ang)*(f.len/2),  y2 = f.y + Math.sin(f.ang)*(f.len/2);
+          if (distToSegment(x, y, x1, y1, x2, y2) < 14) {
+              flashTag('Blocked by the wood!', '#ffb347'); return;
+          }
+          // Check Sub-Branches
+          for (const sb of f.subBranches) {
+              const sx1 = f.x + Math.cos(f.ang)*sb.lx, sy1 = f.y + Math.sin(f.ang)*sb.lx;
+              const sx2 = sx1 + Math.cos(f.ang + sb.ang)*sb.len, sy2 = sy1 + Math.sin(f.ang + sb.ang)*sb.len;
+              if (distToSegment(x, y, sx1, sy1, sx2, sy2) < 8) {
+                  flashTag('Blocked by the wood!', '#ffb347'); return;
+              }
+          }
+      }
+  }
+  // === END BRANCH CLICK-BLOCKER ===
+
   let best=null,bd=1e9;
   for(const b of bugs){ if(b.squished) continue; const d=(b.x-x)**2+(b.y-y)**2; if(d<bd){bd=d;best=b;} }
   if(bugBug && !bugBug.squished){
