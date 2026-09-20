@@ -280,18 +280,29 @@ const sfx = {
   //Agent Context: This synthesizes a dynamic wind "whoosh" by applying an exponential sweep to a BiquadFilter's frequency over a low-pitch sawtooth wave.
   wind(){
     if(!actx) return;
-    const o = actx.createOscillator(), g = actx.createGain(), f = actx.createBiquadFilter();
-    o.type = 'sawtooth';
-    o.frequency.value = 50; // Low rumble
-    f.type = 'lowpass';
-    f.frequency.setValueAtTime(100, actx.currentTime);
-    f.frequency.exponentialRampToValueAtTime(800, actx.currentTime + 1.5);
-    f.frequency.exponentialRampToValueAtTime(100, actx.currentTime + 4);
-    g.gain.setValueAtTime(0, actx.currentTime);
-    g.gain.linearRampToValueAtTime(0.12, actx.currentTime + 1.5);
-    g.gain.linearRampToValueAtTime(0, actx.currentTime + 4);
-    o.connect(f); f.connect(g); g.connect(master);
-    o.start(actx.currentTime); o.stop(actx.currentTime + 4);
+    // Generate true white noise (static) instead of a low-frequency hum
+    const bufferSize = actx.sampleRate * 4; 
+    const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    
+    const noise = actx.createBufferSource();
+    noise.buffer = buffer;
+    
+    // Muffle the static into a "whoosh"
+    const filter = actx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(150, actx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(1000, actx.currentTime + 1.5);
+    filter.frequency.exponentialRampToValueAtTime(100, actx.currentTime + 4);
+    
+    const gain = actx.createGain();
+    gain.gain.setValueAtTime(0, actx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, actx.currentTime + 1.5);
+    gain.gain.linearRampToValueAtTime(0, actx.currentTime + 4);
+    
+    noise.connect(filter); filter.connect(gain); gain.connect(master);
+    noise.start(actx.currentTime); noise.stop(actx.currentTime + 4);
   },
   // === END SFX ===
   wrong(){ tone(220,0.2,'sawtooth',0.07); tone(110,0.3,'sawtooth',0.07,0.12); },
@@ -605,7 +616,7 @@ function update(dt, now){
       // Ant Drifting: Significantly toned down so it's a gentle struggle, not a hurricane
       for(const b of bugs) {
           if(!b.squished) {
-              b.x += wind.vx * dt * 2.0; 
+              b.x += wind.vx * dt * 1.5; 
               b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5; 
           }
       }
@@ -631,17 +642,38 @@ function update(dt, now){
     wind.vx = wind.targetVx * wind.intensity;
   }
 
+ // === LEAF FLIGHT PATH ENGINE ===
   for(let i = giantLeaves.length-1; i >= 0; i--){
     let gl = giantLeaves[i];
     if(!frozen) gl.t += dt; 
+    
     const progress = gl.t / (gl.duration / 1000);
-    gl.x += gl.vx * dt;
-    gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 220 + Math.cos(progress * Math.PI * 4) * 80; 
-    gl.ang = Math.sin(progress * Math.PI * 2.5) * 1.2 + gl.rot * dt;
+    const dir = Math.sign(wind.targetVx);
+    const startX = dir > 0 ? -300 : Wv + 300;
+    const endX = dir > 0 ? Wv + 400 : -400;
+    
+    const linearX = startX + (endX - startX) * progress;
+    
+    if (wind.pattern === 0) { 
+        gl.x = linearX;
+        gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 120;
+        gl.ang = Math.sin(progress * Math.PI * 2) * 1.2 + gl.rot * dt; // Lazy Wave / Wobble
+    } else if (wind.pattern === 1) { 
+        gl.x = linearX;
+        gl.y = gl.startY + Math.sin(progress * Math.PI) * 250;
+        gl.ang = Math.sin(progress * Math.PI * 1.5) * 1.5 + gl.rot * dt; // Deep Swoop / Deep Tilt
+    } else { 
+        gl.x = linearX - Math.sin(progress * Math.PI * 4) * 180 * dir;
+        gl.y = gl.startY - Math.cos(progress * Math.PI * 4) * 150 + 150; 
+        gl.ang = progress * Math.PI * 4 * dir; // FIX: Does two full physical barrel rolls through the Loop-de-loop
+    }
+    
+    // FIX: Restored the robust off-screen splice check
     if(progress >= 1.2 || (wind.targetVx > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
         giantLeaves.splice(i, 1);
     }
   }
+  // === END LEAF FLIGHT PATH ===
   // === END WIND PHYSICS ===
   const left = 1-(now-roundStart)/roundLen;
   
@@ -1046,8 +1078,8 @@ function drawWindStreaks(now, Wv, Hv){
   ctx.lineCap = 'round';
 
   for(let i=0; i<4; i++){
-    // Pan speed multiplier dropped from 0.4 to 0.15 to stop the nausea effect
-    const pan = (now * wind.targetVx * 0.15 + i * 500) % (Wv + 800) - 400;
+    // Pan speed multiplier dropped from 0.4 to 0.15 (now down to 0.015) to stop the nausea effect
+    const pan = (now * wind.targetVx * 0.015 + i * 500) % (Wv + 800) - 400;
     const dir = Math.sign(wind.targetVx);
     const yBase = (i * 200) % (Hv - 100) + 100;
 
@@ -1105,8 +1137,8 @@ function drawForeground(now){
       ctx.fill();
       
       ctx.lineCap = 'round';
-      for(const b of f.blades){
-        let bend = wind.active ? wind.vx * 0.04 : 0; // Wind violently bends grass
+    for(const b of f.blades){
+        let bend = wind.vx * 0.04; // 0.04 amount of grass bend
         let partAlpha = 1;
         const wx = f.x + b.ox, wy = f.y + b.oy;
 
