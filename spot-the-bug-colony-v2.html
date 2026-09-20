@@ -391,12 +391,14 @@ function rollPebbles(){
     }
   }
 }
-  // Caches the grass blades (using olive/dry green colors so they blend in) and builds an organic, jagged shape with bark lines for the twig.
+// Caches the grass blades (using olive/dry green colors so they blend in) and builds an organic, jagged shape with bark lines for the twig.
 // === UI: FOREGROUND STATE ===
 // We cache the geometry here so the math doesn't rerun 60 times a second.
 // Renamed 'leaves' to 'smallLeaves' for your future Seasons mechanic.
+// === UI: FOREGROUND STATE ===
+// We cache the geometry here so the math doesn't rerun 60 times a second.
 function rollOvergrowth(){
-  overgrowth=[]; smallLeaves=[]; giantLeaves=[]; nextGiantLeafAt=gameNow + 2000;
+  overgrowth=[]; giantLeaves=[];
   const Wv = cv.clientWidth, Hv = cv.clientHeight;
   
   // 1. Grass Patches (Cached organic geometry)
@@ -407,18 +409,20 @@ function rollOvergrowth(){
       const x = 70 + r + Math.random()*(Wv - 140 - 2*r);
       const y = 140 + r + Math.random()*(Hv - 240 - 2*r);
       
-      if(Math.hypot(x-nestX, y-nestY) > 100 && Math.hypot(x-sugarX, y-sugarY) > 100){
+      // FIX: Ensure grass doesn't spawn on top of pebbles
+      const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
+
+      if(Math.hypot(x-nestX, y-nestY) > 100 && Math.hypot(x-sugarX, y-sugarY) > 100 && clearOfPebbles){
         let blades = [];
-        // Scatter blades organically instead of a perfect circle
         for(let k=0; k<45; k++){
           blades.push({
             ox: (Math.random()-0.5)*r * (0.6+Math.random()*0.4),
             oy: (Math.random()-0.5)*r * 0.4,
-            an: -Math.PI/2 + (Math.random()-0.5)*0.8, // Base lean
+            an: -Math.PI/2 + (Math.random()-0.5)*0.8,
             len: r * (0.6 + Math.random()*0.7),
-            hue: 60 + Math.random()*30, // Olive/dry greens to match the dirt
+            hue: 60 + Math.random()*30,
             lum: 25 + Math.random()*15,
-            sway: Math.random()*Math.PI*2 // Offset so they don't sway in unison
+            sway: Math.random()*Math.PI*2
           });
         }
         overgrowth.push({ type: 'grass', x, y, r, blades });
@@ -427,21 +431,23 @@ function rollOvergrowth(){
     }
   }
 
-  // 2. The Propped Branch (Multi-pronged and elevated)
+  // 2. The Propped Branch
   for(let tries=0; tries<40; tries++){
     const x = 100 + Math.random()*(Wv - 200);
     const y = 150 + Math.random()*(Hv - 300);
     
-    if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110){
+    // FIX: Ensure the branch doesn't spawn on top of pebbles
+    const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + 40);
+
+    if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110 && clearOfPebbles){
       const len = 160 + Math.random()*60;
       const ang = (Math.random()-0.5)*Math.PI;
       
-      // Generate organic sub-branches attached to the main log
       let subBranches = [];
       for(let b=0; b<3; b++) {
          subBranches.push({
-            lx: (Math.random() - 0.5) * len * 0.6, // Position along main branch
-            ang: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.6), // Angle out
+            lx: (Math.random() - 0.5) * len * 0.6,
+            ang: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.6),
             len: 40 + Math.random()*50
          });
       }
@@ -1071,19 +1077,41 @@ function drawForeground(now){
  else if (f.type === 'branch') {
       ctx.rotate(f.ang);
       
-      // FIX: Shadow now hugs the bottom of the log so it looks flat on the dirt
-      ctx.shadowColor = 'rgba(0,0,0,0.8)'; 
-      ctx.shadowBlur = 6; 
-      ctx.shadowOffsetX = 2; 
-      ctx.shadowOffsetY = 6; 
+      // 1. Draw a support rock first (grounds the elevation visually)
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#2a3438';
+      ctx.beginPath(); ctx.ellipse(f.len/2 - 10, 5, 18, 12, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#48565c';
+      ctx.beginPath(); ctx.ellipse(f.len/2 - 12, 3, 12, 6, 0.5, 0, Math.PI*2); ctx.fill();
       
-      ctx.strokeStyle = '#382210'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // 2. Custom Skewed Shadow
+      // We turn off native shadows and draw a stretched black silhouette to fake 3D elevation
+      ctx.shadowColor = 'transparent'; 
+      ctx.save();
+      ctx.transform(1, 0, -0.2, 1, -5, 15); // Skews the shadow away from the wood
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineCap = 'butt'; 
+      ctx.lineWidth = 18;
+      ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
+      for(const sb of f.subBranches) {
+         ctx.lineWidth = 8;
+         ctx.beginPath(); ctx.moveTo(sb.lx, 0);
+         ctx.quadraticCurveTo(sb.lx + 8, Math.sin(sb.ang)*15, sb.lx + Math.cos(sb.ang)*sb.len, Math.sin(sb.ang)*sb.len);
+         ctx.stroke();
+      }
+      ctx.restore();
+      
+      // 3. Draw the Actual Wood
+      ctx.strokeStyle = '#382210'; 
+      ctx.lineCap = 'butt'; // No more balloon-animal round edges
       
       // Main Log
       ctx.lineWidth = 20;
       ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.lineTo(f.len/2, 0); ctx.stroke();
       
-      // Sub-branches (drawn with matching tight shadows)
+      // Sub-branches
       for(const sb of f.subBranches) {
          ctx.lineWidth = 9;
          ctx.beginPath(); 
@@ -1092,13 +1120,18 @@ function drawForeground(now){
          ctx.stroke();
       }
       
-      // Textured bark grooves and 3D top highlight
-      ctx.shadowColor = 'transparent';
-      ctx.strokeStyle = '#1f1107'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -2); ctx.lineTo(f.len/4, -1); ctx.stroke();
+      // 4. Splintered Ends (Jagged shapes to break up the flat edges)
+      ctx.fillStyle = '#e6c898'; // Light interior wood color
+      ctx.beginPath(); ctx.moveTo(-f.len/2, -10); ctx.lineTo(-f.len/2 - 8, -5); ctx.lineTo(-f.len/2, 2); ctx.lineTo(-f.len/2 - 5, 8); ctx.lineTo(-f.len/2, 10); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(f.len/2, -10); ctx.lineTo(f.len/2 + 6, -3); ctx.lineTo(f.len/2, 4); ctx.lineTo(f.len/2 + 9, 10); ctx.lineTo(f.len/2, 10); ctx.fill();
       
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-f.len/2, -4); ctx.lineTo(f.len/2, -4); ctx.stroke();
+      // 5. Bark Texture & Highlights
+      ctx.strokeStyle = '#1f1107'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-f.len/2 + 10, -3); ctx.lineTo(f.len/4, -2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-f.len/4, 4); ctx.lineTo(f.len/2 - 15, 3); ctx.stroke();
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-f.len/2 + 5, -8); ctx.lineTo(f.len/2 - 5, -8); ctx.stroke();
     }
     ctx.restore();
   }
