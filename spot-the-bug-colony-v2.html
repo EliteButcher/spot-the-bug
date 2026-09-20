@@ -276,6 +276,24 @@ function bgmStop(){ bgmPlay(''); }
 function sfxSafe(fn){ try{ fn(); }catch(e){ noteErr(e); } }
 const sfx = {
   catch(){ [659,784,988,1319].forEach((f,i)=>tone(f,0.09,'square',0.06,i*0.06)); },
+  // === SFX: WIND WHOOSH ===
+  //Agent Context: This synthesizes a dynamic wind "whoosh" by applying an exponential sweep to a BiquadFilter's frequency over a low-pitch sawtooth wave.
+  wind(){
+    if(!actx) return;
+    const o = actx.createOscillator(), g = actx.createGain(), f = actx.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.value = 50; // Low rumble
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(100, actx.currentTime);
+    f.frequency.exponentialRampToValueAtTime(800, actx.currentTime + 1.5);
+    f.frequency.exponentialRampToValueAtTime(100, actx.currentTime + 4);
+    g.gain.setValueAtTime(0, actx.currentTime);
+    g.gain.linearRampToValueAtTime(0.12, actx.currentTime + 1.5);
+    g.gain.linearRampToValueAtTime(0, actx.currentTime + 4);
+    o.connect(f); f.connect(g); g.connect(master);
+    o.start(actx.currentTime); o.stop(actx.currentTime + 4);
+  },
+  // === END SFX ===
   wrong(){ tone(220,0.2,'sawtooth',0.07); tone(110,0.3,'sawtooth',0.07,0.12); },
   timeout(){ [440,392,330,262].forEach((f,i)=>tone(f,0.12,'square',0.05,i*0.1)); },
   tick(){ tone(1200,0.03,'square',0.03); },
@@ -560,36 +578,39 @@ function update(dt, now){
   }
   trail=trail.filter(p=>now-p.t<=1200).slice(-48);
   if(anom.id!=='idle'){ heistT-=dt; if(heistT<=-0.05) heistT=3+Math.random()*3; }
- // === WIND PHYSICS ENGINE ===
+// === WIND PHYSICS ENGINE ===
   if(!frozen && now > nextWindAt) {
     wind.active = true;
     wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (18 + Math.random() * 10); 
     wind.leafDropped = false;
     wind.intensity = 0;
+    wind.killTimer = 0;
+    wind.pattern = Math.floor(Math.random() * 3); // Selects 1 of 3 wind drawings
     nextWindAt = now + 25000 + Math.random() * 15000; 
+    sfxSafe(()=>sfx.wind()); // Trigger audio
   }
 
   if(wind.active) {
-    // Keep wind blowing as long as the leaf hasn't dropped, OR the leaf is currently on screen
     if (!wind.leafDropped || giantLeaves.length > 0) {
-        wind.intensity = Math.min(1, wind.intensity + dt * 1.5); // Fade in
+        wind.intensity = Math.min(1, wind.intensity + dt * 0.8); // Slower fade in
     } else {
-        wind.active = false; // Leaf has left the screen, kill the wind
+        // Leaf has left the screen. Wait 0.5 seconds, then begin the kill sequence
+        if (!wind.killTimer) wind.killTimer = now + 500;
+        if (now > wind.killTimer) wind.active = false;
     }
 
     if(!frozen) {
       wind.vx = wind.targetVx * wind.intensity;
 
-      // Ant Drifting: Increased multiplier and added vertical flutter so it's noticeable
+      // Ant Drifting: Significantly toned down so it's a gentle struggle, not a hurricane
       for(const b of bugs) {
           if(!b.squished) {
-              b.x += wind.vx * dt * 2.5; 
-              b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 15; 
+              b.x += wind.vx * dt * 2.0; 
+              b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5; 
           }
       }
       
-      // Drop the leaf AFTER the wind intensity is high enough
-      if(!wind.leafDropped && wind.intensity > 0.8) {
+      if(!wind.leafDropped && wind.intensity > 0.7) {
         wind.leafDropped = true;
         giantLeaves.push({
           x: wind.vx > 0 ? -300 : Wv + 300,
@@ -605,24 +626,18 @@ function update(dt, now){
       }
     }
   } else {
-    // Rapid decay when wind dies so the grass bounces back up quickly
-    wind.intensity = Math.max(0, wind.intensity - dt * 3.5);
+    // Smooth, slow decay over ~2 seconds to completely eliminate grass snapping
+    wind.intensity = Math.max(0, wind.intensity - dt * 0.5);
     wind.vx = wind.targetVx * wind.intensity;
   }
 
-  // Calculate Leaf Flight Path
   for(let i = giantLeaves.length-1; i >= 0; i--){
     let gl = giantLeaves[i];
     if(!frozen) gl.t += dt; 
-    
     const progress = gl.t / (gl.duration / 1000);
     gl.x += gl.vx * dt;
-    
-    // Majestic flight path: Deep plunging loops instead of a simple up/down bob
     gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 220 + Math.cos(progress * Math.PI * 4) * 80; 
     gl.ang = Math.sin(progress * Math.PI * 2.5) * 1.2 + gl.rot * dt;
-    
-    // Splice leaf if it finishes its duration or goes far off screen
     if(progress >= 1.2 || (wind.targetVx > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
         giantLeaves.splice(i, 1);
     }
@@ -1022,43 +1037,50 @@ function drawHudInCanvas(){
 }
 // === Draw Wind===
 // === UI: RENDER WIND STREAKS ===
-// Draws swirly, overlapping wind gusts based on reference illustrations
+// === UI: RENDER WIND STREAKS ===
 function drawWindStreaks(now, Wv, Hv){
   if(wind.intensity <= 0.01) return;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; // Higher opacity for visibility
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; // Toned down opacity
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
 
-  // Draw 5 distinct, swirly wind gusts that pan across the screen
-  for(let i=0; i<5; i++){
-    // Pan the wind streaks based on wind speed and time
-    const pan = (now * wind.targetVx * 0.4 + i * 400) % (Wv + 800) - 400;
+  for(let i=0; i<4; i++){
+    // Pan speed multiplier dropped from 0.4 to 0.15 to stop the nausea effect
+    const pan = (now * wind.targetVx * 0.15 + i * 500) % (Wv + 800) - 400;
     const dir = Math.sign(wind.targetVx);
-    const yBase = (i * 180) % (Hv - 100) + 100;
+    const yBase = (i * 200) % (Hv - 100) + 100;
 
-    ctx.globalAlpha = wind.intensity * (0.2 + (i%2)*0.3);
+    ctx.globalAlpha = wind.intensity * (0.15 + (i%2)*0.2);
     ctx.beginPath();
     ctx.moveTo(pan, yBase);
 
-    if (i % 2 === 0) {
-        // Swooping S-Curve
+    // Randomly selected pattern assigned when wind spawns
+    if (wind.pattern === 0) {
+        // Pattern 1: Long lazy waves
         ctx.bezierCurveTo(
-           pan + 150 * dir, yBase - 80,
-           pan + 250 * dir, yBase + 100,
-           pan + 400 * dir, yBase - 20
+           pan + 200 * dir, yBase - 60,
+           pan + 400 * dir, yBase + 60,
+           pan + 600 * dir, yBase
+        );
+    } else if (wind.pattern === 1) {
+        // Pattern 2: Deep swoop
+        ctx.bezierCurveTo(
+           pan + 100 * dir, yBase - 150,
+           pan + 300 * dir, yBase + 100,
+           pan + 500 * dir, yBase - 50
         );
     } else {
-        // Loop-de-loop
+        // Pattern 3: Loop-de-loop
         ctx.bezierCurveTo(
-            pan + 200 * dir, yBase - 150,
-            pan + 300 * dir, yBase + 150,
+            pan + 250 * dir, yBase - 200,
+            pan + 350 * dir, yBase + 150,
             pan + 150 * dir, yBase + 50
         );
         ctx.bezierCurveTo(
-            pan + 50 * dir, yBase - 50,
-            pan + 150 * dir, yBase - 100,
-            pan + 350 * dir, yBase - 20
+            pan + 50 * dir, yBase,
+            pan + 150 * dir, yBase - 50,
+            pan + 400 * dir, yBase
         );
     }
     ctx.stroke();
@@ -1349,6 +1371,17 @@ cv.addEventListener('pointerdown', e=>{
   if(state!=='play') return;
   const rect=cv.getBoundingClientRect();
   const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  // === INTERACTION: LEAF CLICK-BLOCKER ===
+  // If the user taps while a giant leaf is over the colony, calculate if the tap hit the leaf.
+  // The leaf's collision radius is roughly 40% of its visual scale.  //SHAUN --> I wonder if this will be okay. 40%?
+  for (const gl of giantLeaves) {
+      const leafRadius = gl.scale * 0.4;
+      if (Math.hypot(x - gl.x, y - gl.y) < leafRadius) {
+          flashTag('Blocked by the leaf!', '#ffb347');
+          return; // Aborts the click completely. Ants underneath are safe.
+      }
+  }
+  // === END CLICK-BLOCKER ===
   let best=null,bd=1e9;
   for(const b of bugs){ if(b.squished) continue; const d=(b.x-x)**2+(b.y-y)**2; if(d<bd){bd=d;best=b;} }
   if(bugBug && !bugBug.squished){
@@ -1429,6 +1462,11 @@ document.getElementById('start').addEventListener('click', ()=>{
   banner.classList.add('hide');
   round=1; score=0; lives=5; streak=0; lifeFx=null; transition=null; readUntil=0;
   charges={scan:1, freeze:0, ernie:0};
+  // === FIX: RESET WIND STATE ON RESTART ===
+  giantLeaves = [];
+  wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
+  nextWindAt = gameNow + 15000; // Give them 15 seconds of peace on Round 1
+  // === END RESET ===
   updateToolButtons();
   $r.textContent='1'; $s.textContent='0';$hearts.textContent='●'.repeat(5);
   startRound();
