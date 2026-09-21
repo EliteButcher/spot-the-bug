@@ -1246,23 +1246,27 @@ function drawForeground(now){
     ctx.save(); ctx.translate(f.x, f.y);
     
 if(f.type === 'grass') {
-      // 1. Soft Organic Dirt Bed (Using the new smooth parabola math)
+      // 1. Soft Organic Dirt Bed (Fixed lighting & opacity)
       ctx.save();
       ctx.rotate(f.spineAngle); 
       
       ctx.lineCap = 'round';
-      ctx.shadowColor = 'rgba(8, 12, 6, 0.9)';
-      ctx.shadowBlur = 25;
-      ctx.strokeStyle = 'rgba(10, 15, 8, 0.3)';
-      ctx.lineWidth = f.r * 1.2; 
+      // Force offsets to 0 so shadows don't leak from rocks or leaves
+      ctx.shadowOffsetX = 0; 
+      ctx.shadowOffsetY = 0;
+      
+      // Drastically softened the shadow and stroke opacity to blend into the terrain
+      ctx.shadowColor = 'rgba(10, 15, 10, 0.4)'; 
+      ctx.shadowBlur = 20; 
+      ctx.strokeStyle = 'rgba(15, 22, 12, 0.1)'; 
+      ctx.lineWidth = f.r * 0.85; // Slimmed down the width so blades overhang the edges
       
       ctx.beginPath();
       ctx.moveTo(-f.spineLen/2, 0);
-      // A single quadratic curve provides a perfectly smooth parabola
       ctx.quadraticCurveTo(0, f.spineCurve * 2, f.spineLen/2, 0);
       ctx.stroke();
       
-      ctx.restore(); // Clears the rotation and the shadow properties
+      ctx.restore(); // Clears the rotation and the shadow properties safely
       
       // 2. Draw Blades (The exact same beautiful bezier math we built earlier)
       ctx.lineCap = 'round';
