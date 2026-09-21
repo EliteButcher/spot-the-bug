@@ -16,32 +16,33 @@
       linear-gradient(180deg,#1c150c,#0a1014 50%,#050b12);
   }
   #picker{
-    min-height:100%; overflow:auto; padding:28px 16px 40px;
+    height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:8px 12px 16px;
   }
-  .frame{max-width:430px;margin:0 auto;position:relative;padding:22px 14px 10px}
+  .frame{max-width:430px;margin:0 auto;position:relative;padding:8px 10px 6px}
   .frame:before{content:"";position:absolute;inset:0;border:2px solid rgba(232,188,72,.5);pointer-events:none}
   .crest{
-    width:96px;height:96px;margin:8px auto 8px;border-radius:50%;
+    width:64px;height:64px;margin:4px auto 4px;border-radius:50%;
     background:radial-gradient(circle at 32% 28%,#fff4c8,#e0b12a 46%,#6a3e08);
-    display:flex;align-items:center;justify-content:center;font-size:46px;
+    display:flex;align-items:center;justify-content:center;font-size:32px;
     box-shadow:0 8px 24px rgba(0,0,0,.5), inset 0 -8px 14px rgba(70,30,0,.4);
   }
   h1{
-    text-align:center;margin:0;letter-spacing:7px;font-size:clamp(28px,7vw,52px);
+    text-align:center;margin:0;letter-spacing:7px;font-size:clamp(22px,6vw,40px);
     background:linear-gradient(#fff8dc,#e6c35c 55%,#9a6b12);
     -webkit-background-clip:text;background-clip:text;color:transparent;
   }
-  h2{text-align:center;letter-spacing:5px;font-size:13px;color:#ffd27a;font-weight:normal;margin:8px 0 6px}
-  p{text-align:center;color:#c9b894;max-width:480px;margin:0 auto 18px;line-height:1.65}
-  .grid{display:grid;grid-template-columns:1fr;gap:12px}
+  h2{text-align:center;letter-spacing:5px;font-size:12px;color:#ffd27a;font-weight:normal;margin:4px 0 4px}
+  p{text-align:center;color:#c9b894;max-width:480px;margin:0 auto 10px;line-height:1.4;font-size:14px}
+  .grid{display:grid;grid-template-columns:1fr;gap:8px}
   a.card, button.card{
-    display:block;text-decoration:none;color:inherit;padding:16px 14px;
+    display:block;text-decoration:none;color:inherit;padding:10px 12px;
     border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.28);
-    min-height:118px;position:relative;overflow:hidden;width:100%;text-align:left;
+    min-height:72px;position:relative;overflow:hidden;width:100%;text-align:left;
     font-family:inherit;cursor:pointer;
   }
-  a.card .emo, button.card .emo{font-size:28px}
-  a.card h3, button.card h3{margin:8px 0 4px;letter-spacing:2px;font-size:16px}
+  a.card .emo, button.card .emo{font-size:22px}
+  a.card h3, button.card h3{margin:4px 0 2px;letter-spacing:2px;font-size:15px}
   a.card small, button.card small{color:#c9b894;letter-spacing:1px}
   a.card.lock, button.card.lock{opacity:.78;cursor:default}
   a.card .pad, button.card .pad{
