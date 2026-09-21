@@ -448,28 +448,26 @@ function rollOvergrowth(){
       const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
 
       // Reduced avoidance radius to allow closer edge-spawning
-      // Reduced avoidance radius to allow closer edge-spawning
       if(Math.hypot(x-nestX, y-nestY) > 85 && Math.hypot(x-sugarX, y-sugarY) > 85 && clearOfPebbles){
         let blades = [];
         
-        // MUCH LARGER, ORGANIC SPINES: Stretch the length and bend significantly
+        // ACTUAL SWEEPING SPINES: Tripled the length and doubled the curve
         const spineAngle = Math.random() * Math.PI * 2;
-        const spineLen = r * (1.5 + Math.random() * 2); // Stretches up to 3.5x the radius
-        const spineCurve = (Math.random() - 0.5) * r * 2.5; 
+        const spineLen = r * (3.5 + Math.random() * 3); // Stretches 3.5x to 6.5x the radius
+        const spineCurve = (Math.random() - 0.5) * r * 4.5; // Deep, dramatic crescent bends
         
-        // Massive density increase to fill the new area
-        const numBlades = Math.floor(120 + Math.random() * 80); 
+        // Increased density to cover the massive new distance
+        const numBlades = Math.floor(200 + Math.random() * 100); 
         
         for(let k=0; k<numBlades; k++){ 
-          // BELL CURVE DISTRIBUTION: Concentrates blades in the center, thins them at the edges
           const t = (Math.random() + Math.random()) / 2; 
           
           const sx = (t - 0.5) * spineLen;
           const sy = Math.sin(t * Math.PI) * spineCurve;
           
-          // ORGANIC TAPERING: Wide scatter in the middle, pinched at the ends
+          // TIGHTER SCATTER: Pinched the waist width down to 0.8 so it looks like a drawn line, not a bush
           const taper = Math.sin(t * Math.PI); 
-          const scatter = (Math.random() - 0.5) * (r * 1.5) * taper; 
+          const scatter = (Math.random() - 0.5) * (r * 0.8) * taper; 
           const ang = Math.random() * Math.PI * 2;
           
           const lx = sx + Math.cos(ang) * scatter;
@@ -479,8 +477,8 @@ function rollOvergrowth(){
             ox: lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle),
             oy: lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle),
             an: -Math.PI/2 + (Math.random()-0.5)*0.8,
-            len: r * (0.3 + Math.random()*0.8), // Wild height variation
-            hue: 65 + Math.random()*40, // Deeper color variance
+            len: r * (0.3 + Math.random()*0.8),
+            hue: 65 + Math.random()*40,
             lum: 20 + Math.random()*30,
             sway: Math.random()*Math.PI*2
           });
