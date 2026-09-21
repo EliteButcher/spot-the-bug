@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>SPOT THE BUG — THE HIVE V2.0</title>
+<title>SPOT THE BUG — THE HIVE V2.1</title>
 <style>
   :root{
     --bg:#120e08; --panel:#1a140c; --ink:#f3e2b8; --dim:#9a7a4a;
@@ -212,7 +212,7 @@
     </div>
   </div>
   <footer>
-    <span>hive-v2.0 · <span style="color:var(--accent)">Ernie</span> · grass + one blocker</span>
+    <span>hive-v2.1 · <span style="color:var(--accent)">Ernie</span> · colony wind + backgrounds</span>
     <button id="mute">SOUND ON</button>
     <span class="blink" id="cursor">█</span>
   </footer>
@@ -285,6 +285,26 @@ function bgmStop(){ bgmPlay(''); }
 function sfxSafe(fn){ try{ fn(); }catch(e){ noteErr(e); } }
 const sfx = {
   catch(){ [659,784,988,1319].forEach((f,i)=>tone(f,0.09,'square',0.06,i*0.06)); },
+  wind(){
+    if(!actx) return;
+    const bufferSize = actx.sampleRate * 4;
+    const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = actx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = actx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(150, actx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(1000, actx.currentTime + 1.5);
+    filter.frequency.exponentialRampToValueAtTime(100, actx.currentTime + 4);
+    const gain = actx.createGain();
+    gain.gain.setValueAtTime(0, actx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, actx.currentTime + 1.5);
+    gain.gain.linearRampToValueAtTime(0, actx.currentTime + 4);
+    noise.connect(filter); filter.connect(gain); gain.connect(master);
+    noise.start(actx.currentTime); noise.stop(actx.currentTime + 4);
+  },
   wrong(){ tone(220,0.2,'sawtooth',0.07); tone(110,0.3,'sawtooth',0.07,0.12); },
   timeout(){ [440,392,330,262].forEach((f,i)=>tone(f,0.12,'square',0.05,i*0.1)); },
   tick(){ tone(1200,0.03,'square',0.03); },
@@ -345,7 +365,11 @@ let heists=[], heistT=3;
 let splats=[];
 let keepGarden=false; // Shaun 09-19: time-up retry keeps nest/flower/plants
 let overgrowth = [];
-let wind = { vx: 0, intensity: 0.35 }; // light constant sway so grass walk-split reads
+const bgCanvas = document.createElement('canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let cachedRoundTheme = -1;
+let giantLeaves = [], nextWindAt = 10000;
+let wind = { active: false, vx: 0, timer: 0, leafDropped: false, intensity: 0, targetVx: 0, pattern: 0, killTimer: 0 };
 
 function nPerRound(){ return Math.min(5 + round*2, 24); }
 function speed(){ return 26 + round*5; }
@@ -562,6 +586,75 @@ function update(dt, now){
   // heist countdown (only when the saboteur is a walker, not the idle jitterer).
   // attempts recur every ~3-6s whether or not one lands; a missed chase resets itself.
   if(anom.id!=='idle'){ heistT-=dt; if(heistT<=-0.05) heistT=3+Math.random()*3; }
+  if(!frozen && now > nextWindAt) {
+    wind.active = true;
+    wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (18 + Math.random() * 10);
+    wind.leafDropped = false;
+    wind.intensity = 0;
+    wind.killTimer = 0;
+    wind.pattern = Math.floor(Math.random() * 3);
+    nextWindAt = now + 25000 + Math.random() * 15000;
+    sfxSafe(()=>sfx.wind());
+  }
+  if(wind.active) {
+    if (!wind.leafDropped || giantLeaves.length > 0) {
+        wind.intensity = Math.min(1, wind.intensity + dt * 0.8);
+    } else {
+        if (!wind.killTimer) wind.killTimer = now + 500;
+        if (now > wind.killTimer) wind.active = false;
+    }
+    if(!frozen) {
+      wind.vx = wind.targetVx * wind.intensity;
+      for(const b of bugs) {
+          if(!b.squished) {
+              b.x += wind.vx * wind.intensity * dt * 1.5;
+              b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5;
+          }
+      }
+      if(!wind.leafDropped && wind.intensity > 0.7) {
+        wind.leafDropped = true;
+        giantLeaves.push({
+          x: wind.vx > 0 ? -300 : Wv + 300,
+          y: Hv * 0.3 + (Math.random()-0.5)*100,
+          startY: Hv * 0.3 + (Math.random()-0.5)*100,
+          t: 0,
+          duration: 4000 + Math.random()*2000,
+          vx: wind.vx * 30,
+          scale: Math.min(Wv, Hv) * 0.85,
+          hue: 15 + Math.random()*25,
+          rot: (Math.random()-0.5) * 4
+        });
+      }
+    }
+  } else {
+    wind.intensity = Math.max(0, wind.intensity - dt * 0.5);
+    wind.vx = (wind.targetVx || 0) * wind.intensity;
+  }
+  for(let i = giantLeaves.length-1; i >= 0; i--){
+    let gl = giantLeaves[i];
+    if(!frozen) gl.t += dt;
+    const progress = gl.t / (gl.duration / 1000);
+    const dir = Math.sign(wind.targetVx || 1);
+    const startX = dir > 0 ? -400 : Wv + 400;
+    const endX = dir > 0 ? Wv + 600 : -600;
+    const linearX = startX + (endX - startX) * progress;
+    if (wind.pattern === 0) {
+        gl.x = linearX;
+        gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 150;
+        gl.ang = Math.sin(progress * Math.PI * 2) * 1.2 + gl.rot * dt;
+    } else if (wind.pattern === 1) {
+        gl.x = linearX;
+        gl.y = gl.startY + Math.sin(progress * Math.PI) * 300;
+        gl.ang = Math.sin(progress * Math.PI * 1.5) * 1.5 + gl.rot * dt;
+    } else {
+        gl.x = linearX - Math.sin(progress * Math.PI * 4) * 90 * dir;
+        gl.y = gl.startY - Math.cos(progress * Math.PI * 4) * 200 + 200;
+        gl.ang = progress * Math.PI * 4 * dir;
+    }
+    if(progress >= 1.2 || ((wind.targetVx || 0) > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
+        giantLeaves.splice(i, 1);
+    }
+  }
   // timer tick sfx under 3s
   const left = 1-(now-roundStart)/roundLen;
   if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
@@ -570,7 +663,7 @@ function update(dt, now){
 }
 
 function rollOvergrowth(){
-  overgrowth=[];
+  overgrowth=[]; giantLeaves=[];
   const Wv = cv.clientWidth, Hv = cv.clientHeight;
   const numGrass = 2 + Math.floor(Math.random()*2);
   for(let i=0; i<numGrass; i++){
@@ -902,11 +995,41 @@ function drawHudInCanvas(){
   ctx.textAlign='start';
 }
 
+function generateBackground(Wv, Hv, themeIndex) {
+  bgCanvas.width = Wv; bgCanvas.height = Hv;
+  const themes = [
+    { base: '#131512', glow: 'rgba(0,0,0,0.6)', gritDark: 'rgba(0,0,0,0.5)', gritLight: 'rgba(255,255,255,0.03)', density: 7000 },
+    { base: '#2b1f16', glow: 'rgba(20,10,5,0.5)', gritDark: 'rgba(0,0,0,0.2)', gritLight: 'rgba(255,255,255,0.02)', density: 2500 },
+    { base: '#4a2511', glow: 'rgba(30,10,0,0.5)', gritDark: 'rgba(40,10,0,0.5)', gritLight: 'rgba(255,150,100,0.05)', density: 4500 },
+    { base: '#c2a578', glow: 'rgba(120,90,40,0.2)', gritDark: 'rgba(100,70,30,0.3)', gritLight: 'rgba(255,255,255,0.2)', density: 12000 }
+  ];
+  const t = themes[themeIndex];
+  bgCtx.fillStyle = t.base;
+  bgCtx.fillRect(0, 0, Wv, Hv);
+  const bgGlow = bgCtx.createRadialGradient(Wv/2, Hv/2, 50, Wv/2, Hv/2, Math.max(Wv, Hv)*0.8);
+  bgGlow.addColorStop(0, 'rgba(255,255,255,0.02)');
+  bgGlow.addColorStop(1, t.glow);
+  bgCtx.fillStyle = bgGlow;
+  bgCtx.fillRect(0, 0, Wv, Hv);
+  bgCtx.strokeStyle = themeIndex === 3 ? 'rgba(255,255,255,0.1)' : 'rgba(240,193,75,0.06)';
+  bgCtx.lineWidth = 1;
+  for(let x=0; x<Wv; x+=40){ bgCtx.beginPath(); bgCtx.moveTo(x,0); bgCtx.lineTo(x,Hv); bgCtx.stroke(); }
+  for(let i=0; i<t.density; i++) {
+    const px = Math.random() * Wv;
+    const py = Math.random() * Hv;
+    bgCtx.fillStyle = Math.random() > 0.6 ? t.gritLight : t.gritDark;
+    const size = Math.random() > 0.85 ? 2 : 1;
+    bgCtx.fillRect(px, py, size, size);
+  }
+}
 function drawDecor(){
   const Wv=cv.clientWidth, Hv=cv.clientHeight;
-  ctx.fillStyle='#16100a'; ctx.fillRect(0,0,Wv,Hv);
-  ctx.strokeStyle='rgba(240,193,75,.05)';
-  for(let x=0;x<Wv;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,Hv); ctx.stroke(); }
+  const themeIndex = Math.floor((round - 1) / 3) % 4;
+  if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
+      generateBackground(Wv, Hv, themeIndex);
+      cachedRoundTheme = themeIndex;
+  }
+  ctx.drawImage(bgCanvas, 0, 0, Wv, Hv);
   // hive: comb mound sits fully BELOW the HUD line
   ctx.fillStyle='#5a3a12';
   ctx.beginPath(); ctx.arc(nestX, nestY-30, 60, 0, Math.PI); ctx.fill();
@@ -1118,6 +1241,55 @@ function drawForeground(now){
     }
     ctx.restore();
   }
+  for(const gl of giantLeaves){
+    ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang||0);
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30;
+    ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
+    ctx.scale(gl.scale/100, gl.scale/100);
+    ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`;
+    ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 35);
+    ctx.quadraticCurveTo(15, 10, 35, 15);
+    ctx.quadraticCurveTo(20, -5, 45, -20);
+    ctx.quadraticCurveTo(15, -15, 0, -55);
+    ctx.quadraticCurveTo(-15, -15, -45, -20);
+    ctx.quadraticCurveTo(-20, -5, -35, 15);
+    ctx.quadraticCurveTo(-15, 10, 0, 35);
+    ctx.fill(); ctx.stroke();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawWindStreaks(now, Wv, Hv){
+  if(wind.intensity <= 0.01) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  for(let i=0; i<4; i++){
+    const pan = (now * (wind.targetVx||0) * 0.015 + i * 500) % (Wv + 800) - 400;
+    const dir = Math.sign(wind.targetVx||1);
+    const yBase = (i * 200) % (Hv - 100) + 100;
+    ctx.globalAlpha = wind.intensity * (0.15 + (i%2)*0.2);
+    ctx.beginPath();
+    ctx.moveTo(pan, yBase);
+    if (wind.pattern === 0) {
+        ctx.bezierCurveTo(pan + 200 * dir, yBase - 60, pan + 400 * dir, yBase + 60, pan + 600 * dir, yBase);
+    } else if (wind.pattern === 1) {
+        ctx.bezierCurveTo(pan + 100 * dir, yBase - 150, pan + 300 * dir, yBase + 100, pan + 500 * dir, yBase - 50);
+    } else {
+        ctx.bezierCurveTo(pan + 250 * dir, yBase - 200, pan + 350 * dir, yBase + 150, pan + 150 * dir, yBase + 50);
+        ctx.bezierCurveTo(pan + 50 * dir, yBase, pan + 150 * dir, yBase - 50, pan + 400 * dir, yBase);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function draw(now){
@@ -1129,6 +1301,7 @@ function draw(now){
     drawSplats();
     drawHeists(now);
     for(const b of bugs) if(!b.squished) drawBug(b, now);
+    drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
     drawForeground(now);
     drawHudInCanvas();
     if(cine) drawCine(now);
