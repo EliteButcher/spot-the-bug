@@ -447,17 +447,16 @@ function rollOvergrowth(){
       // FIX: Ensure grass doesn't spawn on top of pebbles
       const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
 
-      // Reduced avoidance radius to allow closer edge-spawning
-      if(Math.hypot(x-nestX, y-nestY) > 85 && Math.hypot(x-sugarX, y-sugarY) > 85 && clearOfPebbles){
+// INCREASED avoidance radius from 85 to 160 so the long sweeping arms don't cover the nest
+      if(Math.hypot(x-nestX, y-nestY) > 160 && Math.hypot(x-sugarX, y-sugarY) > 160 && clearOfPebbles){
         let blades = [];
         
-        // ACTUAL SWEEPING SPINES: Tripled the length and doubled the curve
         const spineAngle = Math.random() * Math.PI * 2;
-        const spineLen = r * (3.5 + Math.random() * 3); // Stretches 3.5x to 6.5x the radius
-        const spineCurve = (Math.random() - 0.5) * r * 4.5; // Deep, dramatic crescent bends
+        const spineLen = r * (3.0 + Math.random() * 2); // Reined in the max stretch slightly
+        const spineCurve = (Math.random() - 0.5) * r * 3.5; 
         
-        // Increased density to cover the massive new distance
-        const numBlades = Math.floor(200 + Math.random() * 100); 
+        // Bumped density up again to fill the wider patches
+        const numBlades = Math.floor(250 + Math.random() * 100); 
         
         for(let k=0; k<numBlades; k++){ 
           const t = (Math.random() + Math.random()) / 2; 
@@ -465,9 +464,10 @@ function rollOvergrowth(){
           const sx = (t - 0.5) * spineLen;
           const sy = Math.sin(t * Math.PI) * spineCurve;
           
-          // TIGHTER SCATTER: Pinched the waist width down to 0.8 so it looks like a drawn line, not a bush
-          const taper = Math.sin(t * Math.PI); 
-          const scatter = (Math.random() - 0.5) * (r * 0.8) * taper; 
+          // WIDENED SCATTER: Increased the width from 0.8 to 2.2 so it looks like a thick field
+          // Added Math.pow(..., 0.5) to soften the taper so the ends don't pinch into sharp points
+          const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
+          const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
           const ang = Math.random() * Math.PI * 2;
           
           const lx = sx + Math.cos(ang) * scatter;
