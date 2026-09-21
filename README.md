@@ -24,3 +24,6 @@ Download an HTML file and open it in any browser, or play the hosted build (link
 ## V.1 gardens (2026-09-19)
 - `spot-the-bug-colony-v1.html` - ants, 5 attempts
 - `spot-the-bug-hive-v1.html` - bees, 4 attempts (playtest build)
+
+## Hive V2.0 (2026-09-21)
+- `spot-the-bug-hive-v2.0.html` - live grass (colony 2.5.4 draw), garden flowers as rocks analog, one path blocker per level (rose vines / spider web / branch canopy, random pick)
