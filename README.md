@@ -18,6 +18,9 @@ Every anomaly in the game mirrors a real bug archetype:
 ## How to play
 Download an HTML file and open it in any browser, or play the hosted build (link on request).
 
+## Current main (Shaun V.2.5.1)
+- `spot-the-bug-colony-v2.5.1.html` - Colony V.2.5.1 as sent, no patching, SHA256 dcdf9757d6da1c740acfe6e76e415497677ebebda36a9e76b8255a5ee8a7e99a
+
 ## V.1 gardens (2026-09-19)
 - `spot-the-bug-colony-v1.html` - ants, 5 attempts
 - `spot-the-bug-hive-v1.html` - bees, 4 attempts (playtest build)
