@@ -222,7 +222,7 @@
 (() => {
 // A single simulation clock owns every gameplay deadline. Backgrounding stops it.
 let gameNow=0, realLast=performance.now(), appAway=document.hidden, readUntil=0, tagUntil=0;
-let transition=null, cine=null, captureFx=null;
+let transition=null, cine=null, captureFx=null, hitStopUntil=0;
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const tag = document.getElementById('tag'), banner = document.getElementById('banner');
 const $r = document.getElementById('r'), $s = document.getElementById('s'), $hi = document.getElementById('hi');
@@ -476,6 +476,7 @@ function targetFor(b){
 function arriveRadius(){ return 18; }
 
 function update(dt, now){
+  if (now < hitStopUntil) return;
   const frozen = now < freezeUntil;
   if(frozen) return;
   obstacleCache=null; obstacleCache=obstacles();
@@ -1306,6 +1307,13 @@ function draw(now){
     drawHudInCanvas();
     if(cine) drawCine(now);
     if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
+    if (now < hitStopUntil) {
+      ctx.save();
+      ctx.globalAlpha = (hitStopUntil - now) / 150;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+      ctx.restore();
+    }
   }
 }
 // heist flash: a little starburst where the robbery landed
@@ -1516,6 +1524,8 @@ function hitCorrect(b, skipErnie){
   b.hitAt = gameNow;
   const tb = Math.max(0, Math.round((1-(gameNow-roundStart)/roundLen)*100));
   const gain = 100 + tb + round*10;
+  hitStopUntil = gameNow + 150;
+  if(navigator.vibrate) navigator.vibrate(40);
   addScore(gain);
   sfxSafe(()=>sfx.catch());
   if(!skipErnie) maybeGrantErnie();
@@ -1524,6 +1534,7 @@ function hitCorrect(b, skipErnie){
 }
 function hitWrong(b){
   lives--; streak=0; sfxSafe(()=>sfx.splat());
+  if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
   // SPLAT (Shaun 09-19): the wrong ant doesn't just beep and vanish. It gets
   // squished, the body flattens, and it stays on the ground as terrain the
   // colony paths around. (The saboteur can never be splatted: wrong clicks only.)
