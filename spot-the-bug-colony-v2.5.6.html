@@ -444,36 +444,32 @@ function rollOvergrowth(){
   overgrowth=[]; giantLeaves=[];
   const Wv = cv.clientWidth, Hv = cv.clientHeight;
   
-  // 1. Grass Patches (Cached organic geometry)
+    // 1. Grass Patches (Cached organic geometry)
   const numGrass = 2 + Math.floor(Math.random()*2);
   for(let i=0; i<numGrass; i++){
     for(let tries=0; tries<40; tries++){
-      const r = 40 + Math.random()*20; // 10% larger radius
+      const r = 40 + Math.random()*20; 
       const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
       const y = 90 + r + Math.random()*(Hv - 180 - 2*r);
       
-      // FIX: Ensure grass doesn't spawn on top of pebbles
       const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
 
-// INCREASED avoidance radius from 85 to 160 so the long sweeping arms don't cover the nest
-      if(Math.hypot(x-nestX, y-nestY) > 160 && Math.hypot(x-sugarX, y-sugarY) > 160 && clearOfPebbles){
+      // Bumped base avoidance to 230 to account for the massive spine lengths
+      if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
         let blades = [];
         
         const spineAngle = Math.random() * Math.PI * 2;
-        const spineLen = r * (3.0 + Math.random() * 2); // Reined in the max stretch slightly
+        const spineLen = r * (3.0 + Math.random() * 2); 
         const spineCurve = (Math.random() - 0.5) * r * 3.5; 
         
-        // Bumped density up again to fill the wider patches
-        const numBlades = Math.floor(250 + Math.random() * 100); 
+        // Boosted density to pack the shape
+        const numBlades = Math.floor(350 + Math.random() * 150); 
         
         for(let k=0; k<numBlades; k++){ 
           const t = (Math.random() + Math.random()) / 2; 
-          
           const sx = (t - 0.5) * spineLen;
           const sy = Math.sin(t * Math.PI) * spineCurve;
           
-          // WIDENED SCATTER: Increased the width from 0.8 to 2.2 so it looks like a thick field
-          // Added Math.pow(..., 0.5) to soften the taper so the ends don't pinch into sharp points
           const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
           const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
           const ang = Math.random() * Math.PI * 2;
@@ -481,9 +477,16 @@ function rollOvergrowth(){
           const lx = sx + Math.cos(ang) * scatter;
           const ly = sy + Math.sin(ang) * scatter;
           
+          const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
+          const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);
+          
+          // BLADE-LEVEL CULLING: If this specific blade reaches over the nest or sugar, don't spawn it!
+          if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
+          if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
+
           blades.push({
-            ox: lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle),
-            oy: lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle),
+            ox: ox,
+            oy: oy,
             an: -Math.PI/2 + (Math.random()-0.5)*0.8,
             len: r * (0.3 + Math.random()*0.8),
             hue: 65 + Math.random()*40,
@@ -497,7 +500,6 @@ function rollOvergrowth(){
       }
     }
   }
-
  // 2. The Propped Branch (Curved & Organic)
   for(let tries=0; tries<40; tries++){
     const x = 100 + Math.random()*(Wv - 200);
@@ -1260,6 +1262,7 @@ function drawForeground(now){
     ctx.save(); ctx.translate(f.x, f.y);
     
 if(f.type === 'grass') {
+    if(f.type === 'grass') {
       // 1. Soft Organic Dirt Bed (Fixed lighting & opacity)
       ctx.save();
       ctx.rotate(f.spineAngle); 
@@ -1269,11 +1272,11 @@ if(f.type === 'grass') {
       ctx.shadowOffsetX = 0; 
       ctx.shadowOffsetY = 0;
       
-      // Drastically softened the shadow and stroke opacity to blend into the terrain
+      // Softened the shadow and stroke opacity to blend into the terrain
       ctx.shadowColor = 'rgba(10, 15, 10, 0.4)'; 
       ctx.shadowBlur = 20; 
       ctx.strokeStyle = 'rgba(15, 22, 12, 0.1)'; 
-      ctx.lineWidth = f.r * 0.85; // Slimmed down the width so blades overhang the edges
+      ctx.lineWidth = f.r * 0.85; 
       
       ctx.beginPath();
       ctx.moveTo(-f.spineLen/2, 0);
@@ -1282,8 +1285,10 @@ if(f.type === 'grass') {
       
       ctx.restore(); // Clears the rotation and the shadow properties safely
       
-      // 2. Draw Blades (The exact same beautiful bezier math we built earlier)
+      // 2. Draw Blades (Two-Pass Multi-Layer Rendering for Volume)
       ctx.lineCap = 'round';
+      
+      // PASS 1: The "Fake" Underbrush (Darker, Thicker, Shorter)
       for(const b of f.blades){
         let bend = wind.vx * 0.05; 
         let partAlpha = 1;
@@ -1300,8 +1305,44 @@ if(f.type === 'grass') {
 
         const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
         
-        ctx.strokeStyle = `hsla(${b.hue}, 50%, ${b.lum + 10}%, ${partAlpha})`;
-        ctx.lineWidth = 2.5;
+        // Thicker, darker stroke to fill the gaps
+        ctx.strokeStyle = `hsla(${b.hue + 10}, 45%, ${b.lum - 10}%, ${partAlpha * 0.9})`;
+        ctx.lineWidth = 5.5; 
+        
+        const shortLen = b.len * 0.6; // Keep the underbrush low
+        const cp1x = b.ox + Math.cos(b.an) * shortLen * 0.45;
+        const cp1y = b.oy + Math.sin(b.an) * shortLen * 0.45;
+        const cp2x = b.ox + Math.cos(finalAn) * shortLen * 0.8;
+        const cp2y = b.oy + Math.sin(finalAn) * shortLen * 0.8;
+        const endX = b.ox + Math.cos(finalAn) * shortLen;
+        const endY = b.oy + Math.sin(finalAn) * shortLen;
+
+        ctx.beginPath(); 
+        ctx.moveTo(b.ox, b.oy); 
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+        ctx.stroke();
+      }
+
+      // PASS 2: The Highlight Blades (Brighter, Thinner, Taller)
+      for(const b of f.blades){
+        let bend = wind.vx * 0.05; 
+        let partAlpha = 1;
+        const wx = f.x + b.ox, wy = f.y + b.oy;
+
+        for(const ant of bugs) {
+          if(ant.squished) continue;
+          const dist = Math.hypot(ant.x - wx, ant.y - wy);
+          if(dist < 28) { 
+            bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
+            partAlpha = 0.55; 
+          }
+        }
+
+        const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
+        
+        // Thinner, brighter stroke for the detailed tips
+        ctx.strokeStyle = `hsla(${b.hue}, 60%, ${b.lum + 15}%, ${partAlpha})`;
+        ctx.lineWidth = 2.0; 
         
         const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
         const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
