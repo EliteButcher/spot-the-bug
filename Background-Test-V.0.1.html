@@ -882,7 +882,8 @@
       { base: '#6b9c49', dirt: '#5c4028', glow: 'rgba(255,245,200,0.18)', shadow: 'rgba(0,0,0,0.15)', gritDark: 'rgba(20,40,10,0.3)', gritLight: 'rgba(255,255,220,0.25)', density: 8500 }, // Spring Sunlight
       { base: '#7c9e3f', dirt: '#694b32', glow: 'rgba(255,230,150,0.18)', shadow: 'rgba(20,10,0,0.15)', gritDark: 'rgba(40,20,10,0.3)', gritLight: 'rgba(255,240,200,0.25)', density: 8500 }, // Summer Noon
       { base: '#5c8a3e', dirt: '#4a3220', glow: 'rgba(200,220,255,0.12)', shadow: 'rgba(0,10,20,0.25)', gritDark: 'rgba(0,20,0,0.35)', gritLight: 'rgba(200,255,200,0.15)', density: 8500 }, // Overcast/Sky Reflection
-      { base: '#8fa84c', dirt: '#785536', glow: 'rgba(255,250,220,0.22)', shadow: 'rgba(40,20,0,0.1)',  gritDark: 'rgba(60,40,20,0.3)', gritLight: 'rgba(255,255,255,0.25)', density: 9500 }  // Golden Hour
+      { base: '#8fa84c', dirt: '#785536', glow: 'rgba(255,250,220,0.22)', shadow: 'rgba(40,20,0,0.1)',  gritDark: 'rgba(60,40,20,0.3)', gritLight: 'rgba(255,255,255,0.25)', density: 9500 }, // Golden Hour
+      { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 } // Evening Blue
     ];
     const t = themes[themeIndex];
     bgCtx.fillStyle = t.base;
@@ -922,7 +923,8 @@
 
   function drawDecor(){
     const Wv=cv.clientWidth, Hv=cv.clientHeight;
-    const themeIndex = Math.floor((round - 1) / 3) % 4;
+    // Backgrounds are ASSIGNED by level, not random: bg 1-5 -> levels 1-5, then 6-10 loops back through the same order (Shaun 09-23)
+    const themeIndex = (round - 1) % 5;
     if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
         generateBackground(Wv, Hv, themeIndex);
         cachedRoundTheme = themeIndex;
