@@ -879,12 +879,37 @@
   function generateBackground(Wv, Hv, themeIndex) {
     bgCanvas.width = Wv; bgCanvas.height = Hv;
     const themes = [
-      { base: '#6b9c49', dirt: '#5c4028', glow: 'rgba(255,245,200,0.18)', shadow: 'rgba(0,0,0,0.15)', gritDark: 'rgba(20,40,10,0.3)', gritLight: 'rgba(255,255,220,0.25)', density: 8500 }, // Spring Sunlight
-      { base: '#7c9e3f', dirt: '#694b32', glow: 'rgba(255,230,150,0.18)', shadow: 'rgba(20,10,0,0.15)', gritDark: 'rgba(40,20,10,0.3)', gritLight: 'rgba(255,240,200,0.25)', density: 8500 }, // Summer Noon
-      { base: '#5c8a3e', dirt: '#4a3220', glow: 'rgba(200,220,255,0.12)', shadow: 'rgba(0,10,20,0.25)', gritDark: 'rgba(0,20,0,0.35)', gritLight: 'rgba(200,255,200,0.15)', density: 8500 }, // Overcast/Sky Reflection
-      { base: '#8fa84c', dirt: '#785536', glow: 'rgba(255,250,220,0.22)', shadow: 'rgba(40,20,0,0.1)',  gritDark: 'rgba(60,40,20,0.3)', gritLight: 'rgba(255,255,255,0.25)', density: 9500 }, // Golden Hour
-      { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 } // Evening Blue
-    ];
+      // --- The 9 New Weather & Nature Themes ---
+      // 1. Snow Blanket
+      { base: '#d8e5e8', dirt: '#5c4d43', glow: 'rgba(255,255,255,0.3)', shadow: 'rgba(100,120,140,0.15)', gritDark: 'rgba(100,110,120,0.3)', gritLight: 'rgba(255,255,255,0.7)', density: 12000 },
+      // 2. Light Rain
+      { base: '#436b36', dirt: '#362415', glow: 'rgba(150,180,210,0.1)', shadow: 'rgba(5,15,25,0.4)', gritDark: 'rgba(10,20,15,0.4)', gritLight: 'rgba(200,220,255,0.25)', density: 7500 },
+      // 3. Thunderstorm
+      { base: '#2b4028', dirt: '#21160d', glow: 'rgba(220,230,255,0.15)', shadow: 'rgba(5,5,15,0.6)', gritDark: 'rgba(0,0,5,0.5)', gritLight: 'rgba(180,200,255,0.2)', density: 7000 },
+      // 4. Dense Fog
+      { base: '#708269', dirt: '#595048', glow: 'rgba(255,255,255,0.4)', shadow: 'rgba(200,210,205,0.2)', gritDark: 'rgba(40,50,45,0.2)', gritLight: 'rgba(255,255,255,0.3)', density: 5000 },
+      // 5. Autumn Wind
+      { base: '#a8943f', dirt: '#704f29', glow: 'rgba(255,180,100,0.15)', shadow: 'rgba(40,20,0,0.2)',  gritDark: 'rgba(50,30,10,0.3)', gritLight: 'rgba(255,200,100,0.25)', density: 9000 },
+      // 6. Golden Hour
+      { base: '#8fa84c', dirt: '#785536', glow: 'rgba(255,250,220,0.22)', shadow: 'rgba(40,20,0,0.1)',  gritDark: 'rgba(60,40,20,0.3)', gritLight: 'rgba(255,255,255,0.25)', density: 9500 },
+      // 7. Overcast
+      { base: '#5c8a3e', dirt: '#4a3220', glow: 'rgba(200,220,255,0.12)', shadow: 'rgba(0,10,20,0.25)', gritDark: 'rgba(0,20,0,0.35)', gritLight: 'rgba(200,255,200,0.15)', density: 8500 },
+      // 8. Summer Spring
+      { base: '#6b9c49', dirt: '#5c4028', glow: 'rgba(255,245,200,0.18)', shadow: 'rgba(0,0,0,0.15)', gritDark: 'rgba(20,40,10,0.3)', gritLight: 'rgba(255,255,220,0.25)', density: 8500 },
+      // 9. Summer Noon
+      { base: '#7c9e3f', dirt: '#694b32', glow: 'rgba(255,230,150,0.18)', shadow: 'rgba(20,10,0,0.15)', gritDark: 'rgba(40,20,10,0.3)', gritLight: 'rgba(255,240,200,0.25)', density: 8500 },
+      // --- The 4 Original Classic Themes ---
+      // 10. Coarse Dirt
+      { base: '#131512', dirt: '#131512', glow: 'rgba(0,0,0,0.6)', shadow: 'rgba(0,0,0,0.6)', gritDark: 'rgba(0,0,0,0.5)', gritLight: 'rgba(255,255,255,0.03)', density: 7000 },
+      // 11. Smooth Dirt
+      { base: '#2b1f16', dirt: '#2b1f16', glow: 'rgba(20,10,5,0.5)', shadow: 'rgba(20,10,5,0.5)', gritDark: 'rgba(0,0,0,0.2)', gritLight: 'rgba(255,255,255,0.02)', density: 2500 },
+      // 12. Clay
+      { base: '#4a2511', dirt: '#4a2511', glow: 'rgba(30,10,0,0.5)', shadow: 'rgba(30,10,0,0.5)', gritDark: 'rgba(40,10,0,0.5)', gritLight: 'rgba(255,150,100,0.05)', density: 4500 },
+      // 13. Sand
+      { base: '#c2a578', dirt: '#c2a578', glow: 'rgba(120,90,40,0.2)', shadow: 'rgba(120,90,40,0.2)', gritDark: 'rgba(100,70,30,0.3)', gritLight: 'rgba(255,255,255,0.2)', density: 12000 },
+      // 14. Evening Blue - Ernie made this :)
+      { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 }
+  ];
     const t = themes[themeIndex];
     bgCtx.fillStyle = t.base;
     bgCtx.fillRect(0, 0, Wv, Hv);
@@ -924,7 +949,7 @@
   function drawDecor(){
     const Wv=cv.clientWidth, Hv=cv.clientHeight;
     // Backgrounds are ASSIGNED by level, not random: bg 1-5 -> levels 1-5, then 6-10 loops back through the same order (Shaun 09-23)
-    const themeIndex = (round - 1) % 5;
+    const themeIndex = (round - 1) % themes.length;
     if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
         generateBackground(Wv, Hv, themeIndex);
         cachedRoundTheme = themeIndex;
