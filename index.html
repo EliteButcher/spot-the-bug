@@ -98,10 +98,24 @@
         <small>Ladybugs · dinner for the brood · coming soon</small>
       </a>
     </div>
-    <div class="foot">Loader · Colony V2.5.1 · Hive V2.1</div>
+    <div class="foot" id="footver">Loader</div>
   </div>
   </div>
   <div id="stage"><iframe id="game" title="garden"></iframe></div>
+<script>
+// Footer versions are read from the cards' data-src filenames, so the loader can never
+// drift from the builds it actually launches (Shaun 09-23).
+(function(){
+  var out=['Loader'];
+  document.querySelectorAll('button.card[data-src]').forEach(function(b){
+    var m=(b.getAttribute('data-src')||'').match(/v([\d.]+)\.html?$/i);
+    var h=b.querySelector('h3');
+    if(m&&h) out.push(h.textContent.trim().replace(/^THE /,'')+' v'+m[1]);
+  });
+  var f=document.getElementById('footver');
+  if(f) f.textContent=out.join(' \u00b7 ');
+})();
+</script>
 <script>
 (function(){
   const picker = document.getElementById('picker');

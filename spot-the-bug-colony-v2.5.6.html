@@ -211,7 +211,7 @@
     </div>
   </div>
   <footer>
-    <span>v2.5.6 · <span style="color:var(--accent)">Ernie</span> · bug hunter for indie devs</span>
+    <span id="creditver">v2.5.6</span> · <span style="color:var(--accent)">Ernie</span> · bug hunter for indie devs</span>
     <button id="mute">SOUND ON</button>
     <span class="blink" id="cursor">█</span>
   </footer>
@@ -1836,6 +1836,20 @@ if(location.hash.includes('testhook')){ window.__stb_test = { setCharges:c=>{cha
   gameOver }; }
 if(location.hash.includes('test2')){round=2;banner.classList.add('hide');startRound();}
 requestAnimationFrame(t=>{realLast=t; loop(t);});
+})();
+</script>
+<script>
+// Version stamp is derived from the filename so it can never drift again (Shaun 09-23).
+(function(){
+  var f=decodeURIComponent(location.pathname.split('/').pop()||'');
+  var m=f.match(/v([\d.]+)\.html?$/i);
+  var ver=m?('v'+m[1]):'v?';
+  var name=f.replace(/\.html?$/i,'');
+  document.title='SPOT THE BUG — THE COLONY ('+ver+')';
+  var s=document.querySelector('#banner small');
+  if(s&&name) s.innerHTML=ver+'<br>'+name;
+  var c=document.getElementById('creditver');
+  if(c) c.textContent=ver;
 })();
 </script>
 </body>
