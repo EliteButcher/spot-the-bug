@@ -876,9 +876,10 @@
   }
 
   // === PROCEDURAL TERRAIN GENERATOR ===
-  function generateBackground(Wv, Hv, themeIndex) {
-    bgCanvas.width = Wv; bgCanvas.height = Hv;
-    const themes = [
+  // themes lives at file scope: BOTH generateBackground and drawDecor read it
+  // (drawDecor does (round-1) % themes.length; keeping it inside the function
+  //  made drawDecor throw ReferenceError every frame -> black game area, b3b5e4d)
+  const themes = [
       // --- The 9 New Weather & Nature Themes ---
       // 1. Snow Blanket
       { base: '#d8e5e8', dirt: '#5c4d43', glow: 'rgba(255,255,255,0.3)', shadow: 'rgba(100,120,140,0.15)', gritDark: 'rgba(100,110,120,0.3)', gritLight: 'rgba(255,255,255,0.7)', density: 12000 },
@@ -910,6 +911,9 @@
       // 14. Evening Blue - Ernie made this :)
       { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 }
   ];
+
+  function generateBackground(Wv, Hv, themeIndex) {
+    bgCanvas.width = Wv; bgCanvas.height = Hv;
     const t = themes[themeIndex];
     bgCtx.fillStyle = t.base;
     bgCtx.fillRect(0, 0, Wv, Hv);
