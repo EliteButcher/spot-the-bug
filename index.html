@@ -55,6 +55,14 @@
   .tent{box-shadow:inset 6px 0 0 #6db35a}
   .groove{box-shadow:inset 6px 0 0 #e85ad0}
   .spots{box-shadow:inset 6px 0 0 #e23d3d}
+  .testrow{
+    display:flex;justify-content:center;margin:10px 0 10px;
+  }
+  a.testicon, button.testicon{
+    display:flex;align-items:center;gap:6px;text-decoration:none;color:#ffb347;
+    background:rgba(255,179,71,.08);border:1px dashed rgba(255,179,71,.55);
+    padding:5px 12px;font-size:11px;letter-spacing:2px;font-family:inherit;cursor:pointer;
+  }
   .foot{text-align:center;margin-top:16px;font-size:12px;color:#8a7a58;letter-spacing:1px}
   #stage{display:none;position:fixed;inset:0;background:#050b12}
   #stage.on{display:block}
@@ -68,6 +76,9 @@
     <h1>SPOT THE BUG</h1>
     <h2>FIVE GARDENS · ONE SABOTEUR</h2>
     <p>Workers haul. One of them is lying. Pick a garden. Two hunts are live. Three more are locked for later.</p>
+    <button class="testicon" type="button" data-src="Background-Test-V.0.1.html" title="Background design test — not a release">
+      ⚠️ BG TEST V0.1
+    </button>
     <div class="grid">
       <button class="card colony" type="button" data-src="spot-the-bug-colony-v2.5.6.html">
         <div class="emo">🐜</div>
@@ -131,7 +142,7 @@
     stage.classList.remove('on');
     picker.style.display = '';
   }
-  document.querySelectorAll('button.card[data-src]').forEach(btn=>{
+  document.querySelectorAll('button[data-src]').forEach(btn=>{
     btn.addEventListener('click', ()=>openGarden(btn.getAttribute('data-src')));
   });
   window.addEventListener('message', e=>{
