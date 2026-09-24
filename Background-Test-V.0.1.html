@@ -331,9 +331,10 @@
     extralife(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.12,'triangle',0.07,i*0.09)); },
     step(){ tone(1500+Math.random()*200,0.02,'square',0.012); },
     splat(){ tone(90,0.06,'square',0.09); tone(55,0.22,'sawtooth',0.1,0.04); tone(140,0.05,'square',0.05,0.02); },
-    thunder(){
+    thunder(isCloseStrike){
       if(!actx) return;
-      const bufferSize = actx.sampleRate * 3; // 3 seconds of rolling thunder
+      const duration = isCloseStrike ? 4 : 3; 
+      const bufferSize = actx.sampleRate * duration;
       const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
@@ -341,19 +342,21 @@
       const noise = actx.createBufferSource();
       noise.buffer = buffer;
       
-      // Lowpass filter muffles the static into a deep rumble
       const filter = actx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(300, actx.currentTime); // Initial crack frequency
-      filter.frequency.exponentialRampToValueAtTime(40, actx.currentTime + 3); // Rumble fade
+      // Boosted starting frequencies so the crack cuts through the game music
+      filter.frequency.setValueAtTime(isCloseStrike ? 1000 : 400, actx.currentTime); 
+      filter.frequency.exponentialRampToValueAtTime(isCloseStrike ? 30 : 50, actx.currentTime + duration);
       
       const gain = actx.createGain();
       gain.gain.setValueAtTime(0, actx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.35, actx.currentTime + 0.1); // Quick attack (the crack)
-      gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + 3); // Slow decay
+      // Massively boosted gain (1.8 instead of 0.45) to account for the muffled filter
+      gain.gain.linearRampToValueAtTime(isCloseStrike ? 1.8 : 0.8, actx.currentTime + (isCloseStrike ? 0.05 : 0.2)); 
+      gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + duration); 
       
       noise.connect(filter); filter.connect(gain); gain.connect(master);
-      noise.start(actx.currentTime); noise.stop(actx.currentTime + 3); }
+      noise.start(actx.currentTime); noise.stop(actx.currentTime + duration); 
+    },
   };
   document.getElementById('mute').addEventListener('click', e=>{
     muted=!muted; e.target.textContent = muted?'SOUND OFF':'SOUND ON'; audioWake(); syncSound(); if(!muted && state==='menu') bgmPlay('menu');
@@ -759,21 +762,29 @@
     else if (weather === 'fog') spawnRate = 0.03;    // Rare, massive clouds
     else if (weather === 'autumn') spawnRate = 0.02; // Occasional leaves
 
-    // Thunderstorm Lightning Flashes
-    if (weather === 'storm' && Math.random() < 0.003) {
-      lightningFlash = 1.0; // Triggers the whiteout render
-      
-      // Trigger synthesized thunder audio
-      sfxSafe(() => sfx.thunder()); 
-      
-      // Trigger haptic thunder rumble (crack, short rumble, long deep rumble)
+  // Thunderstorm Lightning Flashes
+  if (weather === 'storm' && Math.random() < 0.003) {
+    const isCloseStrike = Math.random() < 0.3;  
+   // 1. VISUAL: The light always reaches the player instantly
+    lightningFlash = isCloseStrike ? 1.0 : 0.4; 
+    // 2. DELAY: Sound travels slower. Close = instant, Distant = 1 to 2 seconds later.
+    const delayMs = isCloseStrike ? 0 : 1000 + Math.random() * 1000;
+    setTimeout(() => {
+      if (state !== 'play') return; // Prevents delayed rumbles if the player dies/pauses
+      // 3. AUDIO: Trigger the synthesized thunder
+      sfxSafe(() => sfx.thunder(isCloseStrike));
+      // 4. HAPTICS: Shake the phone in perfect sync with the audio wave
       if (navigator.vibrate) {
-        navigator.vibrate([80, 40, 150, 50, 300, 60, 400]);
+        if (isCloseStrike) {
+          navigator.vibrate([80, 40, 150, 50, 300, 60, 400]); 
+        } else {
+          navigator.vibrate([30, 50, 100, 100, 200]); 
+        }
       }
-    }
-
-    // Spawn Particles
-    while (Math.random() < spawnRate) {
+    }, delayMs);
+  }
+  // Spawn Particles
+  while (Math.random() < spawnRate) {
       let p = {
         type: weather,
         x: Math.random() * cv.clientWidth,
