@@ -719,7 +719,7 @@
       }
     }
     // === WEATHER GENERATION & PHYSICS ===
-  const themeIndex = Math.floor((round - 1) / 3) % 13;
+  const themeIndex = (round - 1) % themes.length;
   let weather = 'clear';
   if (themeIndex === 0) weather = 'snow';
   else if (themeIndex === 1) weather = 'rain';
