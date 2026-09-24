@@ -1338,7 +1338,21 @@
       ctx.restore();
     }
   }
-  // === WEATHER RENDERING ===
+
+  function draw(now){
+    document.getElementById('frame').classList.toggle('cinematic',state==='cine');
+    if(!lifeFx)document.getElementById('celebrate').style.display='none';
+    drawDecor();
+    if(['play','hit','cine','advance'].includes(state)){
+      drawRadarTrail(now);
+      drawSplats();
+      drawHeists(now);
+      for(const b of bugs) if(!b.squished) drawBug(b, now);
+      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
+      drawForeground(now);
+      drawHudInCanvas();
+        // === WEATHER RENDERING ===
+      //Weather Rendering here instead of the bottom of function drawforeground(now), causes the weather will bleed over the hud. FOG might be an issue
   for (const p of weatherParticles) {
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -1400,19 +1414,6 @@
     ctx.restore();
   }
   // === END WEATHER RENDERING ===
-//If we put Weather Rendering at bottom of function draw(now), the weather will bleed over the hud. Worth trying to see how the rain works. FOG would be the real issue doing, so leaving it here for now.
-  function draw(now){
-    document.getElementById('frame').classList.toggle('cinematic',state==='cine');
-    if(!lifeFx)document.getElementById('celebrate').style.display='none';
-    drawDecor();
-    if(['play','hit','cine','advance'].includes(state)){
-      drawRadarTrail(now);
-      drawSplats();
-      drawHeists(now);
-      for(const b of bugs) if(!b.squished) drawBug(b, now);
-      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
-      drawForeground(now);
-      drawHudInCanvas();
       if(cine) drawCine(now);
       if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
       if (now < hitStopUntil) {
