@@ -908,6 +908,16 @@
 
         let hitFloor = (!hitAnt && !hitBranch && p.y > p.targetY);
 
+        // Ernie 09-25 (Shaun go): snow collects on rock tops too.
+        let hitRock = false;
+        if (!hitAnt && !hitBranch) {
+          for (const r of pebbles) {
+            // land on the upper hemisphere of the pebble, so snow piles on top
+            const dx = p.x - r.x, dy = p.y - r.y;
+            if (dy < 0 && dx * dx + dy * dy < (r.r * 0.9) * (r.r * 0.9)) { hitRock = true; break; }
+          }
+        }
+
        // 5. Material Reactions
         if (p.type === 'rain' || p.type === 'storm') {
           if (hitAnt || hitFloor || hitBranch) {            
@@ -933,9 +943,18 @@
         } 
         else if (p.type === 'snow') {
           if (hitAnt) {
-            // Warm ants: Snow melts instantly on contact
-            weatherParticles.splice(i, 1); continue; 
-          } else if (hitBranch || hitFloor) {
+            // Ernie 09-25 (Shaun go): ants are cold-blooded, so snow has a 50% chance to
+            // stick to them, and once stuck it stays forever (no melt, no slide-off).
+            if (Math.random() < 0.5) {
+              p.attachedTo = hitAnt;
+              p.offsetX = p.x - hitAnt.x;
+              p.offsetY = p.y - hitAnt.y;
+              p.stickTime = 99999;
+            } else {
+              // 50%: still melts off on contact
+              weatherParticles.splice(i, 1); continue;
+            }
+          } else if (hitBranch || hitRock || hitFloor) {
             // Cold surfaces: Snow accumulates
             p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
           }
