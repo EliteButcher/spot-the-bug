@@ -240,6 +240,7 @@
   // === DYNAMIC WEATHER STATE ===
   let weatherParticles = [], lightningFlash = 0;
   let wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
+  let __themeOverride = null; // Ernie rig hook: force a theme index (0 = snow)
   const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
   const tag = document.getElementById('tag'), banner = document.getElementById('banner');
   const $r = document.getElementById('r'), $s = document.getElementById('s'), $hi = document.getElementById('hi');
@@ -891,8 +892,17 @@
         let hitBranch = false;
         if (!hitAnt) {
           for (const f of overgrowth) {
-            // Check if particle fell into a tree branch bounding box
-            if (f.type === 'branch' && Math.hypot(p.x - f.x, p.y - f.y) < f.len * 0.4) { hitBranch = true; break; }
+            // Ernie fix 09-25: the old test was a distance circle (f.len * 0.4) around the branch
+            // origin, so snow piled in a round blob above the stick regardless of its angle.
+            // Now: project the flake into the branch's own frame (along/across), clamp along
+            // the stick's length, and only land when it is actually within the branch's width.
+            if (f.type === 'branch') {
+              const dx = p.x - f.x, dy = p.y - f.y;
+              const c = Math.cos(f.ang), s = Math.sin(f.ang);
+              const across = Math.abs(-dx * s + dy * c);
+              const along = dx * c + dy * s;
+              if (across < 16 && along > -f.len / 2 && along < f.len / 2) { hitBranch = true; break; }
+            }
           }
         }
 
@@ -1212,7 +1222,8 @@
   function drawDecor(){
     const Wv=cv.clientWidth, Hv=cv.clientHeight;
     // Backgrounds are ASSIGNED by level, not random: bg 1-5 -> levels 1-5, then 6-10 loops back through the same order (Shaun 09-23)
-    const themeIndex = (round - 1) % themes.length;
+    // __themeOverride: opt-in rig hook so the weather rig can pin a theme (Ernie)
+    const themeIndex = (__themeOverride !== null) ? __themeOverride : (round - 1) % themes.length;
     if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
         generateBackground(Wv, Hv, themeIndex);
         cachedRoundTheme = themeIndex;
@@ -1512,15 +1523,9 @@
     if(!lifeFx)document.getElementById('celebrate').style.display='none';
     drawDecor();
     if(['play','hit','cine','advance'].includes(state)){
-      drawRadarTrail(now);
-      drawSplats();
-      drawHeists(now);
-      for(const b of bugs) if(!b.squished) drawBug(b, now);
-      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
-      drawForeground(now);
-      drawHudInCanvas();
-        // === WEATHER RENDERING ===
-      //Weather Rendering here instead of the bottom of function drawforeground(now), causes the weather will bleed over the hud. FOG might be an issue
+      // === WEATHER RENDERING ===
+      // Ernie fix 09-25: moved ABOVE the ants and HUD. Shaun's original note said it all:
+      // rendering here instead of the bottom caused weather to bleed over the HUD, fog worst.
   for (const p of weatherParticles) {
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -1592,6 +1597,13 @@
     ctx.restore();
   }
   // === END WEATHER RENDERING ===
+      drawRadarTrail(now);
+      drawSplats();
+      drawHeists(now);
+      for(const b of bugs) if(!b.squished) drawBug(b, now);
+      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
+      drawForeground(now);
+      drawHudInCanvas();
       if(cine) drawCine(now);
       if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
       if (now < hitStopUntil) {
@@ -1904,6 +1916,14 @@
   }
   cv.addEventListener('contextlost', e=>{ ctxLost=true; e.preventDefault(); });
   cv.addEventListener('contextrestored', ()=>{ ctxLost=false; });
+  // Ernie rig hook (opt-in, test only): pin a theme (0 = snow) and expose internals.
+  window.__ernieTest = {
+    forceTheme(i){ __themeOverride = i; },
+    particles(){ return weatherParticles; },
+    branches(){ return overgrowth.filter(f => f.type === 'branch'); },
+    start(){ startRound(); }
+  };
+
   function loop(now){ frame(now); requestAnimationFrame(loop); }
   setInterval(()=>{ if(!appAway && performance.now()-lastFrame>350) frame(performance.now()); },120);
   fit(); updateToolButtons(); flashTag('');
