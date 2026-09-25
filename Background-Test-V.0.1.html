@@ -237,6 +237,8 @@
   let gameNow=0, realLast=performance.now(), appAway=document.hidden, readUntil=0, tagUntil=0;
   let transition=null, cine=null, captureFx=null, hitStopUntil=0;
   let floatingTexts = [], overgrowth = [], giantLeaves = [], nextWindAt = 10000;
+  // === DYNAMIC WEATHER STATE ===
+  let weatherParticles = [], lightningFlash = 0;
   let wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
   const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
   const tag = document.getElementById('tag'), banner = document.getElementById('banner');
@@ -328,7 +330,33 @@
     gameover(){ [392,330,262,196].forEach((f,i)=>tone(f,0.22,'triangle',0.07,i*0.18)); },
     extralife(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.12,'triangle',0.07,i*0.09)); },
     step(){ tone(1500+Math.random()*200,0.02,'square',0.012); },
-    splat(){ tone(90,0.06,'square',0.09); tone(55,0.22,'sawtooth',0.1,0.04); tone(140,0.05,'square',0.05,0.02); }
+    splat(){ tone(90,0.06,'square',0.09); tone(55,0.22,'sawtooth',0.1,0.04); tone(140,0.05,'square',0.05,0.02); },
+    thunder(isCloseStrike){
+      if(!actx) return;
+      const duration = isCloseStrike ? 4 : 3; 
+      const bufferSize = actx.sampleRate * duration;
+      const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = actx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = actx.createBiquadFilter();
+      filter.type = 'lowpass';
+      // Boosted starting frequencies so the crack cuts through the game music
+      filter.frequency.setValueAtTime(isCloseStrike ? 1000 : 400, actx.currentTime); 
+      filter.frequency.exponentialRampToValueAtTime(isCloseStrike ? 30 : 50, actx.currentTime + duration);
+      
+      const gain = actx.createGain();
+      gain.gain.setValueAtTime(0, actx.currentTime);
+      // Massively boosted gain (1.8 instead of 0.45) to account for the muffled filter
+      gain.gain.linearRampToValueAtTime(isCloseStrike ? 1.8 : 0.8, actx.currentTime + (isCloseStrike ? 0.05 : 0.2)); 
+      gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + duration); 
+      
+      noise.connect(filter); filter.connect(gain); gain.connect(master);
+      noise.start(actx.currentTime); noise.stop(actx.currentTime + duration); 
+    },
   };
   document.getElementById('mute').addEventListener('click', e=>{
     muted=!muted; e.target.textContent = muted?'SOUND OFF':'SOUND ON'; audioWake(); syncSound(); if(!muted && state==='menu') bgmPlay('menu');
@@ -397,6 +425,7 @@
     keepGarden=false;
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
+    weatherParticles=[]; lightningFlash=0; // Wipes the old weather instantly
     
     for(let i=0;i<n;i++){
       const c=i%cols, r0=Math.floor(i/cols);
@@ -551,6 +580,13 @@
     const sp = speed();
     for(const b of bugs){
       if(b.squished) continue; 
+      // === ANIMATE WATER DROPLETS ON BACK ===
+      if (b.drops) {
+        for (let j = b.drops.length - 1; j >= 0; j--) {
+          b.drops[j].t += dt * b.drops[j].speed;
+          if (b.drops[j].t > 1) b.drops.splice(j, 1); // Delete when it hits the tail
+        }
+      }
       const isB = (b===bugBug);
       let f = 1;
       if(!frozen){
@@ -716,8 +752,243 @@
           giantLeaves.splice(i, 1);
       }
     }
+    // === WEATHER GENERATION & PHYSICS ===
+  const themeIndex = (round - 1) % themes.length;
+  let weather = 'clear';
+  if (themeIndex === 0) weather = 'snow';
+  else if (themeIndex === 1) weather = 'rain';
+  else if (themeIndex === 2) weather = 'storm';
+  else if (themeIndex === 3) weather = 'fog';
+  else if (themeIndex === 4) weather = 'autumn';
+
+  if (!frozen) {
+    let spawnRate = 0;
+    if (weather === 'snow') spawnRate = 0.4;         // Moderate, steady snow
+    else if (weather === 'rain') spawnRate = 0.8;    // Fast drops
+    else if (weather === 'storm') spawnRate = 1.5;   // Heavy downpour
+    else if (weather === 'fog') spawnRate = 0.03;    // Rare, massive clouds
+    else if (weather === 'autumn') spawnRate = 0.02; // Occasional leaves
+
+  // Thunderstorm Lightning Flashes
+  if (weather === 'storm' && Math.random() < 0.003) {
+    const isCloseStrike = Math.random() < 0.3;  
+   // 1. VISUAL: The light always reaches the player instantly
+    lightningFlash = isCloseStrike ? 1.0 : 0.4; 
+    // 2. DELAY: Sound travels slower. Close = instant, Distant = 1 to 2 seconds later.
+    const delayMs = isCloseStrike ? 0 : 1000 + Math.random() * 1000;
+    setTimeout(() => {
+      if (state !== 'play') return; // Prevents delayed rumbles if the player dies/pauses
+      // 3. AUDIO: Trigger the synthesized thunder
+      sfxSafe(() => sfx.thunder(isCloseStrike));
+      // 4. HAPTICS: Shake the phone in perfect sync with the audio wave
+      if (navigator.vibrate) {
+        if (isCloseStrike) {
+          navigator.vibrate([80, 40, 150, 50, 300, 60, 400]); 
+        } else {
+          navigator.vibrate([30, 50, 100, 100, 200]); 
+        }
+      }
+    }, delayMs);
+  }
+  // Spawn Particles
+  while (Math.random() < spawnRate) {
+      let p = {
+        type: weather,
+        x: Math.random() * cv.clientWidth,
+        y: weather === 'fog' ? Math.random() * cv.clientHeight : -20,
+        vx: (Math.random() - 0.5) * 10,
+        vy: 10, ang: Math.random() * Math.PI * 2,
+        spin: 0, scale: 1, alpha: 1,
+        targetY: 100 + Math.random() * (cv.clientHeight - 50) // Gives everything a random floor
+      };
+      
+      if (weather === 'snow') {
+        p.vy = 20 + Math.random() * 30;
+        p.scale = 1 + Math.random() * 2.5;
+        p.alpha = 0.4 + Math.random() * 0.5;
+        p.spin = (Math.random() - 0.5) * 2;
+      } else if (weather === 'rain' || weather === 'storm') {
+        p.vy = (weather === 'storm' ? 350 : 250) + Math.random() * 100;
+        p.vx = (weather === 'storm' ? 30 : 5) + (Math.random() - 0.5) * 20; // Storms slant sideways
+        p.alpha = 0.2 + Math.random() * 0.3;
+        // Set a random "floor" height where this specific drop will splash
+        p.targetY = 100 + Math.random() * (cv.clientHeight - 50); //Gives illusion of water hitting the ground      
+      } else if (weather === 'autumn') {
+        p.vy = 30 + Math.random() * 40;
+        p.vx = (Math.random() - 0.5) * 20;
+        p.spin = (Math.random() - 0.5) * 4;
+        p.scale = 0.4 + Math.random() * 0.5;
+        p.hue = 15 + Math.random() * 40;
+        p.lum = 40 + Math.random() * 20;
+      } else if (weather === 'fog') {
+        p.x = (wind.active && wind.vx > 0) ? -200 : cv.clientWidth + 200;
+        p.y = Math.random() * cv.clientHeight;
+        p.vy = (Math.random() - 0.5) * 5;
+        p.vx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 20);
+        p.scale = 150 + Math.random() * 200; // Massive radius
+        p.alpha = 0.15 + Math.random() * 0.02; // Barely visible mist
+      }
+      weatherParticles.push(p);
+      spawnRate -= 1; // Allows multiple spawns per frame for storms
+    }
+  }
+
+  // Fade out lightning
+  if (lightningFlash > 0) lightningFlash = Math.max(0, lightningFlash - dt * 2.5);
+
+// Apply Physics to existing particles
+  for (let i = weatherParticles.length - 1; i >= 0; i--) {
+    let p = weatherParticles[i];
+    if (!frozen) {
+      
+      // 1. Attached Particles Logic
+      if (p.attachedTo) {
+        if (p.stickTime !== 99999) p.stickTime -= dt;
+        if (p.stickTime <= 0 || p.attachedTo.squished) {
+          p.attachedTo = null; // Unstick!
+          p.vx = (Math.random() > 0.5 ? 1 : -1) * 30; // Slide off
+          p.vy = 40; 
+        } else {
+          // Stick to the ant's back
+          p.x = p.attachedTo.x + p.offsetX;
+          p.y = p.attachedTo.y + p.offsetY;
+          continue; 
+        }
+      }
+
+      // 2. Accumulated Snow & Leaves (Logs, Rocks & Ground)
+      if (p.landed) {
+        p.landedTimer = (p.landedTimer || 0) + dt;
+        // Snow on rocks lasts 30s before melting, ground/branches fade after 10s
+        const meltDelay = (p.type === 'snow' && p.hitRock) ? 30 : 10;
+        if (p.landedTimer > meltDelay) p.alpha -= dt * (p.hitRock ? 0.05 : 0.1); 
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
+        continue; // Skip normal falling physics
+      }
+
+      // 3. Normal Falling Physics
+      let windMult = p.type === 'snow' ? 2 : p.type === 'rain' ? 0.3 : p.type === 'storm' ? 0.8 : 1.5;
+      if (p.type === 'splash') windMult = 0.5;
+      let currentWind = wind.active ? wind.vx * windMult : 0;
+      
+      p.x += (p.vx + currentWind) * dt;
+      p.y += p.vy * dt;
+      if (p.spin) p.ang += p.spin * dt;
+
+      if (p.type === 'snow' || p.type === 'autumn') p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
+
+      // Wrap snow around the screen horizontally during wind gusts
+      if (p.type === 'snow' && !p.landed && !p.attachedTo) {
+        if (p.x < -50) p.x = cv.clientWidth + 50;
+        if (p.x > cv.clientWidth + 50) p.x = -50;
+      }
+
+      if (p.type === 'splash') {
+        p.vy += 400 * dt; 
+        p.alpha -= dt * 3.5; 
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
+      }
+
+      // 4. Advanced Hit Detection
+      if (p.type !== 'splash' && p.type !== 'fog') {
+        let hitAnt = null;
+        for (const b of bugs) {
+          // Tightened hit radius (0.6 instead of 0.9) so snow hits the core body
+          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.6) { hitAnt = b; break; }
+        }
+        
+        let hitBranch = false;
+        let hitRock = false;
+        
+        if (!hitAnt) {
+          // Explicitly check Pebbles, shrinking the radius by the snowflake's size
+          for (const pb of pebbles) {
+            if (Math.hypot(p.x - pb.x, p.y - pb.y) < pb.r - p.scale) { hitRock = true; break; }
+          }
+          
+          if (!hitRock) {
+            for (const f of overgrowth) {
+              if (f.type === 'branch') {
+                // Use line-segment collision matching the true angles and lengths of the branches
+                const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
+                const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+                const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
+                const y2 = f.y + Math.sin(f.ang)*(f.len/2);
+                
+                if (distToSegment(p.x, p.y, x1, y1, x2, y2) < 14 - p.scale) { hitBranch = true; break; }
+                
+                for (const sb of f.subBranches) {
+                  const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly;
+                  const sy1 = f.y + Math.sin(f.ang)*sb.lx + Math.cos(f.ang)*sb.ly;
+                  const localEx = sb.lx + Math.cos(sb.ang)*sb.len;
+                  const localEy = sb.ly + Math.sin(sb.ang)*sb.len;
+                  const sx2 = f.x + Math.cos(f.ang)*localEx - Math.sin(f.ang)*localEy;
+                  const sy2 = f.y + Math.sin(f.ang)*localEx + Math.cos(f.ang)*localEy;
+                  if (distToSegment(p.x, p.y, sx1, sy1, sx2, sy2) < 8 - p.scale) { hitBranch = true; break; }
+                }
+                if (hitBranch) break;
+              }
+            }
+          }
+        }
+        let hitFloor = (!hitAnt && !hitBranch && !hitRock && p.y > p.targetY);
+
+        // 5. Material Reactions
+        if (p.type === 'rain' || p.type === 'storm') {
+          if (hitAnt || hitFloor || hitBranch || hitRock) {            
+            if (hitAnt) {
+              hitAnt.drops = hitAnt.drops || [];
+              hitAnt.drops.push({ t: 0, xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, speed: 1.5 + Math.random() });
+            }
+            let splashCount = 2 + Math.floor(Math.random() * 2);
+            for(let s = 0; s < splashCount; s++) {
+              weatherParticles.push({
+                type: 'splash', x: p.x, y: p.y,
+                vx: (Math.random() - 0.5) * 80 + currentWind, vy: -40 - Math.random() * 60,
+                alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
+              });
+            }
+            weatherParticles.splice(i, 1); continue;
+          }
+        } 
+        else if (p.type === 'snow') {
+          if (hitAnt) {
+            p.attachedTo = hitAnt;
+            // Pull the snowflake inward toward the spine so it doesn't hang off the side
+            const angleToCenter = Math.atan2(p.y - hitAnt.y, p.x - hitAnt.x);
+            const tightDist = Math.min(Math.hypot(p.x - hitAnt.x, p.y - hitAnt.y), hitAnt.w * 0.3);
+            p.offsetX = Math.cos(angleToCenter) * tightDist;
+            p.offsetY = Math.sin(angleToCenter) * tightDist;
+            p.stickTime = 99999; // Never melts on cold-blooded ants
+          } else if (hitBranch || hitFloor || hitRock) {
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+            p.hitRock = hitRock; // Flag to delay melting
+          }
+        }
+        else if (p.type === 'autumn') {
+          if (hitAnt) {
+            let roll = Math.random();
+            if (roll < 0.25) { 
+              p.vx = (Math.random() > 0.5 ? 1 : -1) * 40;
+            } else { 
+              p.attachedTo = hitAnt;
+              p.offsetX = p.x - hitAnt.x; 
+              p.offsetY = p.y - hitAnt.y;
+              p.stickTime = roll > 0.5 ? 99999 : 1 + Math.random() * 2; 
+            }
+          } else if (hitBranch || hitFloor || hitRock) {
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+          }
+        }
+      }
+    }
+    // 6. Memory Cleanup for off-screen particles
+    if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
+      weatherParticles.splice(i, 1);
+    }
+  }
+  // === END WEATHER PHYSICS ===
     const left = 1-(now-roundStart)/roundLen;
-    
     if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
     $timebar.style.width = (Math.max(left,0)*100)+'%';
     $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
@@ -870,15 +1141,35 @@
       ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 0.5;
       ctx.beginPath(); ctx.moveTo(-cw, -cw*0.5); ctx.lineTo(0, 0); ctx.lineTo(cw, -cw*0.5); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, cw*0.8); ctx.stroke();
-      ctx.restore();
+      ctx.restore(); // Restores from the crumb rotation
+    } 
+    // === WATER ROLLING OFF THE BACK ===
+    if (b.drops && b.drops.length > 0) {
+      ctx.fillStyle = 'rgba(200, 230, 255, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 0.5; 
+      for (const drop of b.drops) {
+        // drop.t slides from 0.0 (thorax) to 1.0 (tail)
+        let dropY = -b.w * 0.1 + (drop.t * b.w * 1.3); 
+        // Wiggle slightly left and right as it slides
+        let dropX = drop.xOffset + Math.sin(drop.t * 15) * 1.5; 
+        // Shrink the drop as it gets closer to dripping off
+        let dropSize = Math.max(0.5, b.w * 0.15 * (1 - drop.t));
+        ctx.beginPath();
+        ctx.ellipse(dropX, dropY, dropSize * 0.7, dropSize * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
-    ctx.restore();
+    // === END WATER ===
+    ctx.restore(); // Restores from the ant's main body rotation
   }
 
   // === PROCEDURAL TERRAIN GENERATOR ===
-  function generateBackground(Wv, Hv, themeIndex) {
-    bgCanvas.width = Wv; bgCanvas.height = Hv;
-    const themes = [
+  // themes lives at file scope: BOTH generateBackground and drawDecor read it
+  // (drawDecor does (round-1) % themes.length; keeping it inside the function
+  //  made drawDecor throw ReferenceError every frame -> black game area, b3b5e4d)
+  const themes = [
       // --- The 9 New Weather & Nature Themes ---
       // 1. Snow Blanket
       { base: '#d8e5e8', dirt: '#5c4d43', glow: 'rgba(255,255,255,0.3)', shadow: 'rgba(100,120,140,0.15)', gritDark: 'rgba(100,110,120,0.3)', gritLight: 'rgba(255,255,255,0.7)', density: 12000 },
@@ -910,6 +1201,9 @@
       // 14. Evening Blue - Ernie made this :)
       { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 }
   ];
+
+  function generateBackground(Wv, Hv, themeIndex) {
+    bgCanvas.width = Wv; bgCanvas.height = Hv;
     const t = themes[themeIndex];
     bgCtx.fillStyle = t.base;
     bgCtx.fillRect(0, 0, Wv, Hv);
@@ -1256,6 +1550,79 @@
       drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
       drawForeground(now);
       drawHudInCanvas();
+        // === WEATHER RENDERING ===
+      //Weather Rendering here instead of the bottom of function drawforeground(now), causes the weather will bleed over the hud. FOG might be an issue
+  for (const p of weatherParticles) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    
+    if (p.type === 'snow') {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+      ctx.fill();
+    } 
+    else if (p.type === 'rain' || p.type === 'storm') {
+      ctx.globalAlpha = p.alpha;
+      ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+      ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      // Stretch the rain drop into a streak based on its falling velocity
+      ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
+      ctx.stroke();
+      } 
+      // Creates Water Droplet Splash
+      else if (p.type === 'splash') {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+        ctx.beginPath();
+        ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // ====End Water Droplet Splash===
+      else if (p.type === 'autumn') {
+      ctx.globalAlpha = p.alpha; //decomposing leaves fade smoothly
+      ctx.rotate(p.ang);
+      ctx.scale(p.scale, p.scale);
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
+      ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
+      ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
+      ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
+      ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
+    } 
+    else if (p.type === 'fog') {
+      ctx.globalAlpha = p.alpha;
+      // Massive, soft radial gradients simulating drifting low clouds
+      const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
+      fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
+      fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = fogGrad;
+      ctx.beginPath(); 
+      ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Render Thunderstorm Lightning Flash over everything
+  if (lightningFlash > 0) {
+    ctx.save();
+    ctx.globalAlpha = lightningFlash * 0.6; // Max 60% whiteout so it doesn't blind the player
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+    ctx.restore();
+  }
+  // === END WEATHER RENDERING ===
       if(cine) drawCine(now);
       if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
       if (now < hitStopUntil) {
@@ -1520,6 +1887,8 @@
     round=1; score=0; lives=5; streak=0; lifeFx=null; transition=null; readUntil=0;
     charges={scan:1, freeze:0, ernie:0};
     giantLeaves = [];
+    weatherParticles = []; // Clears the sky on restart
+    lightningFlash = 0;    
     wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
     nextWindAt = gameNow + 15000;
     updateToolButtons();
