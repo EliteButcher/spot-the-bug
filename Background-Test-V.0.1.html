@@ -795,7 +795,8 @@
       let p = {
         type: weather,
         x: Math.random() * cv.clientWidth,
-        y: weather === 'fog' ? Math.random() * cv.clientHeight : -20,
+        // Pre-fill the screen during the first 0.2 seconds of the round. Prevents only top half of phone having weather
+        y: (weather === 'fog' || t < 0.2) ? Math.random() * cv.clientHeight : -20,
         vx: (Math.random() - 0.5) * 10,
         vy: 10, ang: Math.random() * Math.PI * 2,
         spin: 0, scale: 1, alpha: 1,
@@ -859,9 +860,9 @@
       // 2. Accumulated Snow & Leaves (Logs, Rocks & Ground)
       if (p.landed) {
         p.landedTimer = (p.landedTimer || 0) + dt;
-        // Snow on rocks lasts 30s before melting, ground/branches fade after 10s
-        const meltDelay = (p.type === 'snow' && p.hitRock) ? 30 : 10;
-        if (p.landedTimer > meltDelay) p.alpha -= dt * (p.hitRock ? 0.05 : 0.1); 
+        // Snow on rocks lasts essentially forever (45s), ground/branches fade after 10s
+        const meltDelay = (p.type === 'snow' && p.hitRock) ? 45 : 10;
+        if (p.landedTimer > meltDelay) p.alpha -= dt * (p.hitRock ? 0.02 : 0.1); 
         if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
         continue; // Skip normal falling physics
       }
@@ -893,7 +894,6 @@
       if (p.type !== 'splash' && p.type !== 'fog') {
         let hitAnt = null;
         for (const b of bugs) {
-          // Tightened hit radius (0.6 instead of 0.9) so snow hits the core body
           if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.6) { hitAnt = b; break; }
         }
         
@@ -901,21 +901,31 @@
         let hitRock = false;
         
         if (!hitAnt) {
-          // Explicitly check Pebbles, shrinking the radius by the snowflake's size
+          // Rocks are drawn as squished ellipses. 
+          // We drastically shrink the hit radius to 65% and account for the snowflake's size to prevent edge overhang.
           for (const pb of pebbles) {
-            if (Math.hypot(p.x - pb.x, p.y - pb.y) < pb.r - p.scale) { hitRock = true; break; }
+            if (Math.hypot(p.x - pb.x, p.y - pb.y) < pb.r * 0.65 - p.scale) { hitRock = true; break; }
           }
           
           if (!hitRock) {
             for (const f of overgrowth) {
               if (f.type === 'branch') {
-                // Use line-segment collision matching the true angles and lengths of the branches
+                // The branch visually bows via a quadratic curve. 
+                // We approximate it with 2 straight line segments using a mathematical midpoint apex.
                 const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
                 const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
                 const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
                 const y2 = f.y + Math.sin(f.ang)*(f.len/2);
                 
-                if (distToSegment(p.x, p.y, x1, y1, x2, y2) < 14 - p.scale) { hitBranch = true; break; }
+                // Calculate the physical apex (midpoint) of the curve
+                const xMid = f.x - Math.sin(f.ang) * (f.curveY / 2);
+                const yMid = f.y + Math.cos(f.ang) * (f.curveY / 2);
+                
+                // Check the left half and right half separately
+                if (distToSegment(p.x, p.y, x1, y1, xMid, yMid) < 14 - p.scale ||
+                    distToSegment(p.x, p.y, xMid, yMid, x2, y2) < 14 - p.scale) { 
+                  hitBranch = true; break; 
+                }
                 
                 for (const sb of f.subBranches) {
                   const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly;
@@ -931,6 +941,7 @@
             }
           }
         }
+
         let hitFloor = (!hitAnt && !hitBranch && !hitRock && p.y > p.targetY);
 
         // 5. Material Reactions
@@ -953,16 +964,20 @@
         } 
         else if (p.type === 'snow') {
           if (hitAnt) {
-            p.attachedTo = hitAnt;
-            // Pull the snowflake inward toward the spine so it doesn't hang off the side
-            const angleToCenter = Math.atan2(p.y - hitAnt.y, p.x - hitAnt.x);
-            const tightDist = Math.min(Math.hypot(p.x - hitAnt.x, p.y - hitAnt.y), hitAnt.w * 0.3);
-            p.offsetX = Math.cos(angleToCenter) * tightDist;
-            p.offsetY = Math.sin(angleToCenter) * tightDist;
-            p.stickTime = 99999; // Never melts on cold-blooded ants
+            // Only a small 12% chance for a snowflake to stick
+            if (Math.random() < 0.12) {
+              p.attachedTo = hitAnt;
+              const angleToCenter = Math.atan2(p.y - hitAnt.y, p.x - hitAnt.x);
+              const tightDist = Math.min(Math.hypot(p.x - hitAnt.x, p.y - hitAnt.y), hitAnt.w * 0.25);
+              p.offsetX = Math.cos(angleToCenter) * tightDist;
+              p.offsetY = Math.sin(angleToCenter) * tightDist;
+              p.stickTime = 99999; 
+            } else {
+              weatherParticles.splice(i, 1); continue; // Melts/glances off
+            }
           } else if (hitBranch || hitFloor || hitRock) {
             p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
-            p.hitRock = hitRock; // Flag to delay melting
+            p.hitRock = hitRock; 
           }
         }
         else if (p.type === 'autumn') {
@@ -982,6 +997,7 @@
         }
       }
     }
+
     // 6. Memory Cleanup for off-screen particles
     if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
       weatherParticles.splice(i, 1);
