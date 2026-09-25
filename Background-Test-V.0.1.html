@@ -580,6 +580,13 @@
     const sp = speed();
     for(const b of bugs){
       if(b.squished) continue; 
+      // === ANIMATE WATER DROPLETS ON BACK ===
+      if (b.drops) {
+        for (let j = b.drops.length - 1; j >= 0; j--) {
+          b.drops[j].t += dt * b.drops[j].speed;
+          if (b.drops[j].t > 1) b.drops.splice(j, 1); // Delete when it hits the tail
+        }
+      }
       const isB = (b===bugBug);
       let f = 1;
       if(!frozen){
@@ -792,6 +799,7 @@
         vx: (Math.random() - 0.5) * 10,
         vy: 10, ang: Math.random() * Math.PI * 2,
         spin: 0, scale: 1, alpha: 1
+        targetY: 100 + Math.random() * (cv.clientHeight - 50) // Gives everything a random floor
       };
       
       if (weather === 'snow') {
@@ -828,63 +836,122 @@
   // Fade out lightning
   if (lightningFlash > 0) lightningFlash = Math.max(0, lightningFlash - dt * 2.5);
 
-  // Apply Physics to existing particles
+// Apply Physics to existing particles
   for (let i = weatherParticles.length - 1; i >= 0; i--) {
     let p = weatherParticles[i];
     if (!frozen) {
+      
+      // 1. Attached Leaves Logic
+      if (p.attachedTo) {
+        p.stickTime -= dt;
+        if (p.stickTime <= 0 || p.attachedTo.squished) {
+          p.attachedTo = null; // Unstick!
+          p.vx = (Math.random() > 0.5 ? 1 : -1) * 30; // Slide off
+          p.vy = 40; 
+        } else {
+          // Stick to the ant's back
+          p.x = p.attachedTo.x + p.offsetX;
+          p.y = p.attachedTo.y + p.offsetY;
+          continue; // Skip normal falling physics
+        }
+      }
+
+      // 2. Accumulated Snow & Leaves (Logs & Ground)
+      if (p.landed) {
+        p.landedTimer = (p.landedTimer || 0) + dt;
+        if (p.landedTimer > 10) p.alpha -= dt * 0.1; // Fade out slowly after 10s to save FPS
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
+        continue; // Skip normal falling physics
+      }
+
+      // 3. Normal Falling Physics
       let windMult = p.type === 'snow' ? 2 : p.type === 'rain' ? 0.3 : p.type === 'storm' ? 0.8 : 1.5;
-      if (p.type === 'splash') windMult = 0.5; // Splashes blow sideways slightly
+      if (p.type === 'splash') windMult = 0.5;
       let currentWind = wind.active ? wind.vx * windMult : 0;
       
       p.x += (p.vx + currentWind) * dt;
       p.y += p.vy * dt;
       if (p.spin) p.ang += p.spin * dt;
 
-      if (p.type === 'snow' || p.type === 'autumn') {
-        p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
-      }
+      if (p.type === 'snow' || p.type === 'autumn') p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
       
-      // Splash Physics: Gravity pulls them down, and they fade out fast
       if (p.type === 'splash') {
         p.vy += 400 * dt; 
         p.alpha -= dt * 3.5; 
-        if (p.alpha <= 0) {
-          weatherParticles.splice(i, 1);
-          continue;
-        }
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
       }
 
-      // Hit Detection: Does the rain hit the floor or an ant?
-      if (p.type === 'rain' || p.type === 'storm') {
-        let hit = false;
-        // Check if it hit an ant's back
+      // 4. Advanced Hit Detection
+      if (p.type !== 'splash' && p.type !== 'fog') {
+        let hitAnt = null;
         for (const b of bugs) {
-          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.9) {
-            hit = true; break;
+          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.9) { hitAnt = b; break; }
+        }
+        
+        let hitBranch = false;
+        if (!hitAnt) {
+          for (const f of overgrowth) {
+            // Check if particle fell into a tree branch bounding box
+            if (f.type === 'branch' && Math.hypot(p.x - f.x, p.y - f.y) < f.len * 0.4) { hitBranch = true; break; }
           }
         }
-        // Or if it hit the dirt
-        if (!hit && p.y > p.targetY) hit = true;
 
-        if (hit) {
-          // Spawn 2 or 3 tiny splash droplets
-          let splashCount = 2 + Math.floor(Math.random() * 2);
-          for(let s = 0; s < splashCount; s++) {
-            weatherParticles.push({
-              type: 'splash', x: p.x, y: p.y,
-              vx: (Math.random() - 0.5) * 80 + currentWind,
-              vy: -40 - Math.random() * 60,
-              alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
-            });
+        let hitFloor = (!hitAnt && !hitBranch && p.y > p.targetY);
+
+       // 5. Material Reactions
+        if (p.type === 'rain' || p.type === 'storm') {
+          if (hitAnt || hitFloor || hitBranch) {            
+            if (hitAnt) {
+              hitAnt.drops = hitAnt.drops || [];
+              hitAnt.drops.push({ 
+                t: 0, // Starts at the thorax (0%) and slides to the tail (100%)
+                xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, 
+                speed: 1.5 + Math.random() 
+              });
+            }
+
+            let splashCount = 2 + Math.floor(Math.random() * 2);
+            for(let s = 0; s < splashCount; s++) {
+              weatherParticles.push({
+                type: 'splash', x: p.x, y: p.y,
+                vx: (Math.random() - 0.5) * 80 + currentWind, vy: -40 - Math.random() * 60,
+                alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
+              });
+            }
+            weatherParticles.splice(i, 1); continue;
           }
-          // Delete the original raindrop
-          weatherParticles.splice(i, 1);
-          continue;
+        } 
+        else if (p.type === 'snow') {
+          if (hitAnt) {
+            // Warm ants: Snow melts instantly on contact
+            weatherParticles.splice(i, 1); continue; 
+          } else if (hitBranch || hitFloor) {
+            // Cold surfaces: Snow accumulates
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+          }
+        }
+        else if (p.type === 'autumn') {
+          if (hitAnt) {
+            let roll = Math.random();
+            if (roll < 0.25) { 
+              // 25% chance to glance off
+              p.vx = (Math.random() > 0.5 ? 1 : -1) * 40;
+            } else { 
+              // 75% chance to stick to the ant
+              p.attachedTo = hitAnt;
+              p.offsetX = p.x - hitAnt.x; 
+              p.offsetY = p.y - hitAnt.y;
+              // Of those that stick, 50% stay forever, 25% slide off after 1-3 seconds
+              p.stickTime = roll > 0.5 ? 99999 : 1 + Math.random() * 2; 
+            }
+          } else if (hitBranch || hitFloor) {
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+          }
         }
       }
     }
 
-    // Cleanup off-screen particles
+    // 6. Memory Cleanup for off-screen particles
     if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
       weatherParticles.splice(i, 1);
     }
@@ -1046,16 +1113,17 @@
       ctx.restore(); // Restores from the crumb rotation
     } 
     // === WATER ROLLING OFF THE BACK ===
-    const themeIndex = (round - 1) % 14;
-    if (themeIndex === 1 || themeIndex === 2) {
+    if (b.drops && b.drops.length > 0) {
       ctx.fillStyle = 'rgba(200, 230, 255, 0.4)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.lineWidth = 0.5;      
-      for (let i = 0; i < 3; i++) {
-        let dropT = (b.t * 2 + i * 2.5) % Math.PI;         
-        let dropY = -b.w*0.1 + (dropT / Math.PI) * (b.w * 1.3);        
-        let dropX = Math.sin(dropT * 4 + i) * (b.w * 0.3);        
-        let dropSize = Math.max(0.5, b.w * 0.15 * (1 - (dropT / Math.PI)));
+      ctx.lineWidth = 0.5; 
+      for (const drop of b.drops) {
+        // drop.t slides from 0.0 (thorax) to 1.0 (tail)
+        let dropY = -b.w * 0.1 + (drop.t * b.w * 1.3); 
+        // Wiggle slightly left and right as it slides
+        let dropX = drop.xOffset + Math.sin(drop.t * 15) * 1.5; 
+        // Shrink the drop as it gets closer to dripping off
+        let dropSize = Math.max(0.5, b.w * 0.15 * (1 - drop.t));
         ctx.beginPath();
         ctx.ellipse(dropX, dropY, dropSize * 0.7, dropSize * 1.5, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -1485,6 +1553,7 @@
       }
       // ====End Water Droplet Splash===
       else if (p.type === 'autumn') {
+      ctx.globalAlpha = p.alpha; //decomposing leaves fade smoothly
       ctx.rotate(p.ang);
       ctx.scale(p.scale, p.scale);
       ctx.shadowColor = 'rgba(0,0,0,0.4)';
