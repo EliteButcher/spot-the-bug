@@ -859,6 +859,9 @@
 
       // 2. Accumulated Snow & Leaves (Logs & Ground)
       if (p.landed) {
+        // Shaun 09-25: branch snow is permanent (no melt timer). Rock + ground snow
+        // holds 10s, then fades out slowly.
+        if (p.noMelt) { continue; }
         p.landedTimer = (p.landedTimer || 0) + dt;
         if (p.landedTimer > 10) p.alpha -= dt * 0.1; // Fade out slowly after 10s to save FPS
         if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
@@ -914,7 +917,9 @@
           for (const r of pebbles) {
             // land on the upper hemisphere of the pebble, so snow piles on top
             const dx = p.x - r.x, dy = p.y - r.y;
-            if (dy < 0 && dx * dx + dy * dy < (r.r * 0.9) * (r.r * 0.9)) { hitRock = true; break; }
+            // Shaun 09-25: double the catch rate on rocks. Capture area doubled vs 0.9r
+            // (0.9 * sqrt(2) ~ 1.27) so rocks and branches collect at the same odds.
+            if (dy < 0 && dx * dx + dy * dy < (r.r * 1.27) * (r.r * 1.27)) { hitRock = true; break; }
           }
         }
 
@@ -955,8 +960,9 @@
               weatherParticles.splice(i, 1); continue;
             }
           } else if (hitBranch || hitRock || hitFloor) {
-            // Cold surfaces: Snow accumulates
-            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+            // Cold surfaces: Snow accumulates. Branches keep their snow forever;
+            // rocks and ground melt on the standard timer.
+            p.landed = true; p.noMelt = !!hitBranch; p.vx = 0; p.vy = 0; p.spin = 0; 
           }
         }
         else if (p.type === 'autumn') {
