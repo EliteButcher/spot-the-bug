@@ -878,6 +878,14 @@
       if (p.spin) p.ang += p.spin * dt;
 
       if (p.type === 'snow' || p.type === 'autumn') p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
+
+      // Shaun 09-25: wind-blown snow that exits one side of the screen re-enters the
+      // other side instead of disappearing. Only applies to falling flakes (landed /
+      // attached ones never drift off-screen), splash and leaves keep their own paths.
+      if (p.type === 'snow') {
+        const m = 30; // small margin so flakes don't pop at the exact edge
+        if (p.x < -m) p.x = Wv + m; else if (p.x > Wv + m) p.x = -m;
+      }
       
       if (p.type === 'splash') {
         p.vy += 400 * dt; 
