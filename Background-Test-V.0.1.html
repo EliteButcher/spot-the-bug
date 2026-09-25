@@ -803,6 +803,9 @@
         p.vy = (weather === 'storm' ? 350 : 250) + Math.random() * 100;
         p.vx = (weather === 'storm' ? 30 : 5) + (Math.random() - 0.5) * 20; // Storms slant sideways
         p.alpha = 0.2 + Math.random() * 0.3;
+        // Set a random "floor" height where this specific drop will splash
+        p.targetY = 100 + Math.random() * (cv.clientHeight - 50); //Gives illusion of water hitting the ground
+      }
       } else if (weather === 'autumn') {
         p.vy = 30 + Math.random() * 40;
         p.vx = (Math.random() - 0.5) * 20;
@@ -830,21 +833,59 @@
   for (let i = weatherParticles.length - 1; i >= 0; i--) {
     let p = weatherParticles[i];
     if (!frozen) {
-      // Different weather reacts to the massive wind gusts differently
       let windMult = p.type === 'snow' ? 2 : p.type === 'rain' ? 0.3 : p.type === 'storm' ? 0.8 : 1.5;
+      if (p.type === 'splash') windMult = 0.5; // Splashes blow sideways slightly
       let currentWind = wind.active ? wind.vx * windMult : 0;
       
       p.x += (p.vx + currentWind) * dt;
       p.y += p.vy * dt;
-      p.ang += p.spin * dt;
+      if (p.spin) p.ang += p.spin * dt;
 
-      // Snow and leaves flutter back and forth; rain falls straight
       if (p.type === 'snow' || p.type === 'autumn') {
         p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
       }
+      
+      // Splash Physics: Gravity pulls them down, and they fade out fast
+      if (p.type === 'splash') {
+        p.vy += 400 * dt; 
+        p.alpha -= dt * 3.5; 
+        if (p.alpha <= 0) {
+          weatherParticles.splice(i, 1);
+          continue;
+        }
+      }
+
+      // Hit Detection: Does the rain hit the floor or an ant?
+      if (p.type === 'rain' || p.type === 'storm') {
+        let hit = false;
+        // Check if it hit an ant's back
+        for (const b of bugs) {
+          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.9) {
+            hit = true; break;
+          }
+        }
+        // Or if it hit the dirt
+        if (!hit && p.y > p.targetY) hit = true;
+
+        if (hit) {
+          // Spawn 2 or 3 tiny splash droplets
+          let splashCount = 2 + Math.floor(Math.random() * 2);
+          for(let s = 0; s < splashCount; s++) {
+            weatherParticles.push({
+              type: 'splash', x: p.x, y: p.y,
+              vx: (Math.random() - 0.5) * 80 + currentWind,
+              vy: -40 - Math.random() * 60,
+              alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
+            });
+          }
+          // Delete the original raindrop
+          weatherParticles.splice(i, 1);
+          continue;
+        }
+      }
     }
 
-    // Cleanup off-screen particles to save memory
+    // Cleanup off-screen particles
     if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
       weatherParticles.splice(i, 1);
     }
@@ -1434,8 +1475,17 @@
       // Stretch the rain drop into a streak based on its falling velocity
       ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
       ctx.stroke();
-    } 
-    else if (p.type === 'autumn') {
+      } 
+      // Creates Water Droplet Splash
+      else if (p.type === 'splash') {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+        ctx.beginPath();
+        ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // ====End Water Droplet Splash===
+      else if (p.type === 'autumn') {
       ctx.rotate(p.ang);
       ctx.scale(p.scale, p.scale);
       ctx.shadowColor = 'rgba(0,0,0,0.4)';
