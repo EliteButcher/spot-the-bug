@@ -804,8 +804,7 @@
         p.vx = (weather === 'storm' ? 30 : 5) + (Math.random() - 0.5) * 20; // Storms slant sideways
         p.alpha = 0.2 + Math.random() * 0.3;
         // Set a random "floor" height where this specific drop will splash
-        p.targetY = 100 + Math.random() * (cv.clientHeight - 50); //Gives illusion of water hitting the ground
-      }
+        p.targetY = 100 + Math.random() * (cv.clientHeight - 50); //Gives illusion of water hitting the ground      
       } else if (weather === 'autumn') {
         p.vy = 30 + Math.random() * 40;
         p.vx = (Math.random() - 0.5) * 20;
@@ -819,7 +818,7 @@
         p.vy = (Math.random() - 0.5) * 5;
         p.vx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 20);
         p.scale = 150 + Math.random() * 200; // Massive radius
-        p.alpha = 0.03 + Math.random() * 0.04; // Barely visible mist
+        p.alpha = 0.15 + Math.random() * 0.02; // Barely visible mist
       }
       weatherParticles.push(p);
       spawnRate -= 1; // Allows multiple spawns per frame for storms
