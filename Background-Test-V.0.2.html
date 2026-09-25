@@ -808,6 +808,10 @@
         p.scale = 1 + Math.random() * 2.5;
         p.alpha = 0.4 + Math.random() * 0.5;
         p.spin = (Math.random() - 0.5) * 2;
+        // Pre-fill (Shaun 09-25 pick A): new flakes start at a random height across
+        // the screen instead of always at the top, so the field reads uniform from
+        // second one. Fall speed untouched.
+        p.y = Math.random() * Math.max(1, p.targetY - 20);
       } else if (weather === 'rain' || weather === 'storm') {
         p.vy = (weather === 'storm' ? 350 : 250) + Math.random() * 100;
         p.vx = (weather === 'storm' ? 30 : 5) + (Math.random() - 0.5) * 20; // Storms slant sideways
