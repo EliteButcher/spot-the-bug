@@ -912,14 +912,14 @@
         let hitFloor = (!hitAnt && !hitBranch && p.y > p.targetY);
 
         // Ernie 09-25 (Shaun go): snow collects on rock tops too.
-        let hitRock = false;
+        let hitRock = null;
         if (!hitAnt && !hitBranch) {
           for (const r of pebbles) {
             // land on the upper hemisphere of the pebble, so snow piles on top
             const dx = p.x - r.x, dy = p.y - r.y;
             // Shaun 09-25: double the catch rate on rocks. Capture area doubled vs 0.9r
             // (0.9 * sqrt(2) ~ 1.27) so rocks and branches collect at the same odds.
-            if (dy < 0 && dx * dx + dy * dy < (r.r * 1.27) * (r.r * 1.27)) { hitRock = true; break; }
+            if (dy < 0 && dx * dx + dy * dy < (r.r * 1.27) * (r.r * 1.27)) { hitRock = { r, ang: Math.atan2(dy, dx) }; break; }
           }
         }
 
@@ -963,6 +963,14 @@
             // Cold surfaces: Snow accumulates. Branches keep their snow forever;
             // rocks and ground melt on the standard timer.
             p.landed = true; p.noMelt = !!hitBranch; p.vx = 0; p.vy = 0; p.spin = 0; 
+            if (hitRock) {
+              // Ernie fix 09-25: snap the flake onto the rock's rim instead of leaving it
+              // where it entered the capture disc. Landing mid-disc drew a round halo
+              // AROUND the rock; rim-snap puts the snow on the rock itself.
+              const jit = 0.86 + Math.random() * 0.12;
+              p.x = hitRock.r.x + Math.cos(hitRock.ang) * hitRock.r.r * jit;
+              p.y = hitRock.r.y + Math.sin(hitRock.ang) * hitRock.r.r * jit;
+            }
           }
         }
         else if (p.type === 'autumn') {
