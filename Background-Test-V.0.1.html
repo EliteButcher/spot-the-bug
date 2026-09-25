@@ -841,9 +841,9 @@
     let p = weatherParticles[i];
     if (!frozen) {
       
-      // 1. Attached Leaves Logic
+      // 1. Attached Particles Logic
       if (p.attachedTo) {
-        p.stickTime -= dt;
+        if (p.stickTime !== 99999) p.stickTime -= dt;
         if (p.stickTime <= 0 || p.attachedTo.squished) {
           p.attachedTo = null; // Unstick!
           p.vx = (Math.random() > 0.5 ? 1 : -1) * 30; // Slide off
@@ -852,14 +852,16 @@
           // Stick to the ant's back
           p.x = p.attachedTo.x + p.offsetX;
           p.y = p.attachedTo.y + p.offsetY;
-          continue; // Skip normal falling physics
+          continue; 
         }
       }
 
-      // 2. Accumulated Snow & Leaves (Logs & Ground)
+      // 2. Accumulated Snow & Leaves (Logs, Rocks & Ground)
       if (p.landed) {
         p.landedTimer = (p.landedTimer || 0) + dt;
-        if (p.landedTimer > 10) p.alpha -= dt * 0.1; // Fade out slowly after 10s to save FPS
+        // Snow on rocks lasts 30s before melting, ground/branches fade after 10s
+        const meltDelay = (p.type === 'snow' && p.hitRock) ? 30 : 10;
+        if (p.landedTimer > meltDelay) p.alpha -= dt * (p.hitRock ? 0.05 : 0.1); 
         if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
         continue; // Skip normal falling physics
       }
@@ -874,7 +876,13 @@
       if (p.spin) p.ang += p.spin * dt;
 
       if (p.type === 'snow' || p.type === 'autumn') p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
-      
+
+      // Wrap snow around the screen horizontally during wind gusts
+      if (p.type === 'snow' && !p.landed && !p.attachedTo) {
+        if (p.x < -50) p.x = cv.clientWidth + 50;
+        if (p.x > cv.clientWidth + 50) p.x = -50;
+      }
+
       if (p.type === 'splash') {
         p.vy += 400 * dt; 
         p.alpha -= dt * 3.5; 
@@ -885,31 +893,53 @@
       if (p.type !== 'splash' && p.type !== 'fog') {
         let hitAnt = null;
         for (const b of bugs) {
-          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.9) { hitAnt = b; break; }
+          // Tightened hit radius (0.6 instead of 0.9) so snow hits the core body
+          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.6) { hitAnt = b; break; }
         }
         
         let hitBranch = false;
+        let hitRock = false;
+        
         if (!hitAnt) {
-          for (const f of overgrowth) {
-            // Check if particle fell into a tree branch bounding box
-            if (f.type === 'branch' && Math.hypot(p.x - f.x, p.y - f.y) < f.len * 0.4) { hitBranch = true; break; }
+          // Explicitly check Pebbles, shrinking the radius by the snowflake's size
+          for (const pb of pebbles) {
+            if (Math.hypot(p.x - pb.x, p.y - pb.y) < pb.r - p.scale) { hitRock = true; break; }
+          }
+          
+          if (!hitRock) {
+            for (const f of overgrowth) {
+              if (f.type === 'branch') {
+                // Use line-segment collision matching the true angles and lengths of the branches
+                const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
+                const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+                const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
+                const y2 = f.y + Math.sin(f.ang)*(f.len/2);
+                
+                if (distToSegment(p.x, p.y, x1, y1, x2, y2) < 14 - p.scale) { hitBranch = true; break; }
+                
+                for (const sb of f.subBranches) {
+                  const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly;
+                  const sy1 = f.y + Math.sin(f.ang)*sb.lx + Math.cos(f.ang)*sb.ly;
+                  const localEx = sb.lx + Math.cos(sb.ang)*sb.len;
+                  const localEy = sb.ly + Math.sin(sb.ang)*sb.len;
+                  const sx2 = f.x + Math.cos(f.ang)*localEx - Math.sin(f.ang)*localEy;
+                  const sy2 = f.y + Math.sin(f.ang)*localEx + Math.cos(f.ang)*localEy;
+                  if (distToSegment(p.x, p.y, sx1, sy1, sx2, sy2) < 8 - p.scale) { hitBranch = true; break; }
+                }
+                if (hitBranch) break;
+              }
+            }
           }
         }
+        let hitFloor = (!hitAnt && !hitBranch && !hitRock && p.y > p.targetY);
 
-        let hitFloor = (!hitAnt && !hitBranch && p.y > p.targetY);
-
-       // 5. Material Reactions
+        // 5. Material Reactions
         if (p.type === 'rain' || p.type === 'storm') {
-          if (hitAnt || hitFloor || hitBranch) {            
+          if (hitAnt || hitFloor || hitBranch || hitRock) {            
             if (hitAnt) {
               hitAnt.drops = hitAnt.drops || [];
-              hitAnt.drops.push({ 
-                t: 0, // Starts at the thorax (0%) and slides to the tail (100%)
-                xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, 
-                speed: 1.5 + Math.random() 
-              });
+              hitAnt.drops.push({ t: 0, xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, speed: 1.5 + Math.random() });
             }
-
             let splashCount = 2 + Math.floor(Math.random() * 2);
             for(let s = 0; s < splashCount; s++) {
               weatherParticles.push({
@@ -923,34 +953,35 @@
         } 
         else if (p.type === 'snow') {
           if (hitAnt) {
-            // Warm ants: Snow melts instantly on contact
-            weatherParticles.splice(i, 1); continue; 
-          } else if (hitBranch || hitFloor) {
-            // Cold surfaces: Snow accumulates
+            p.attachedTo = hitAnt;
+            // Pull the snowflake inward toward the spine so it doesn't hang off the side
+            const angleToCenter = Math.atan2(p.y - hitAnt.y, p.x - hitAnt.x);
+            const tightDist = Math.min(Math.hypot(p.x - hitAnt.x, p.y - hitAnt.y), hitAnt.w * 0.3);
+            p.offsetX = Math.cos(angleToCenter) * tightDist;
+            p.offsetY = Math.sin(angleToCenter) * tightDist;
+            p.stickTime = 99999; // Never melts on cold-blooded ants
+          } else if (hitBranch || hitFloor || hitRock) {
             p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+            p.hitRock = hitRock; // Flag to delay melting
           }
         }
         else if (p.type === 'autumn') {
           if (hitAnt) {
             let roll = Math.random();
             if (roll < 0.25) { 
-              // 25% chance to glance off
               p.vx = (Math.random() > 0.5 ? 1 : -1) * 40;
             } else { 
-              // 75% chance to stick to the ant
               p.attachedTo = hitAnt;
               p.offsetX = p.x - hitAnt.x; 
               p.offsetY = p.y - hitAnt.y;
-              // Of those that stick, 50% stay forever, 25% slide off after 1-3 seconds
               p.stickTime = roll > 0.5 ? 99999 : 1 + Math.random() * 2; 
             }
-          } else if (hitBranch || hitFloor) {
+          } else if (hitBranch || hitFloor || hitRock) {
             p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
           }
         }
       }
     }
-
     // 6. Memory Cleanup for off-screen particles
     if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
       weatherParticles.splice(i, 1);
