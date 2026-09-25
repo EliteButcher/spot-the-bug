@@ -922,6 +922,15 @@
             if (dy < 0 && dx * dx + dy * dy < (r.r * 1.27) * (r.r * 1.27)) { hitRock = { r, ang: Math.atan2(dy, dx) }; break; }
           }
         }
+        // Ernie fix 09-25: a flake whose random floor sits beside a rock used to land
+        // as ground snow at that height and never reached the rock (the rest of the
+        // halo). If its floor lands inside a rock's capture zone, it belongs on the rock.
+        if (!hitRock && hitFloor) {
+          for (const r of pebbles) {
+            const dx = p.x - r.x, dy = p.y - r.y;
+            if (dy < 0 && dx * dx + dy * dy < (r.r * 1.27) * (r.r * 1.27)) { hitRock = { r, ang: Math.atan2(dy, dx) }; hitFloor = false; break; }
+          }
+        }
 
        // 5. Material Reactions
         if (p.type === 'rain' || p.type === 'storm') {
