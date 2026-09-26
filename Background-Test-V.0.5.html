@@ -526,14 +526,14 @@ function rollOvergrowth(season = 'summer'){
           if (season === 'winter') { 
             gHue = 45; gSat = 25; gLum = 50;             //Adjusts the colors. gHue = Base Color. gSat = Vibrancy (up is vivid). gLum = Light (up is brighter)
             gBaseAlpha = 0.7; gGhostAlpha = 0.3;        // gBaseAlpha = solidness of grass-0-1( up is opaque and heavy). gGhostAlpha = Down Fades grass out
-            gDensity = 250; gLength = 0.55; gFlex = 0.03; //gDenisty = More Gras(up means more.) //gLength = Height multiplier(up is taller) gFlex = Bend (higher is more bendy)
+            gDensity = 260; gLength = 0.55; gFlex = 0.0225; //gDenisty = More Gras(up means more.) //gLength = Height multiplier(up is taller) gFlex = Bend (higher is more bendy)
           } else if (season === 'spring') { 
             gHue = 110; gSat = 75; gLum = 35; 
-            gBaseAlpha = 0.85; gGhostAlpha = 0.3; 
+            gBaseAlpha = 0.85; gGhostAlpha = 0.4; 
             gDensity = 450; gLength = 1.0; gFlex = 0.04; 
           } else if (season === 'fall') { 
             gHue = 35; gSat = 65; gLum = 30; 
-            gBaseAlpha = 0.9; gGhostAlpha = 0.4;
+            gBaseAlpha = 0.9; gGhostAlpha = 0.375;
             gDensity = 300; gLength = 0.7; gFlex = 0.03; 
           }
 
