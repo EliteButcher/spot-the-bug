@@ -449,12 +449,17 @@
           }
         }
         tries++;
-      }
-      
-      puddle = { x: px, y: py, r: 0, maxR: pr, growth: ti === 2 ? 3 : 1.5 };
+      }      
+      // Only create the puddle if a safe spot was actually found
+      if (valid) {
+        puddle = { x: px, y: py, r: 0, maxR: pr, growth: ti === 2 ? 3 : 1.5 };
+      } else {
+        puddle = null;
+      }      
     } else {
       puddle = null;
     }
+    
     for(let i=0;i<n;i++){
       const c=i%cols, r0=Math.floor(i/cols);
       const toNest = Math.random()<0.5;
