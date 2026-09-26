@@ -922,8 +922,8 @@
                 const yMid = f.y + Math.cos(f.ang) * (f.curveY / 2);
                 
                 // Check the left half and right half separately
-                if (distToSegment(p.x, p.y, x1, y1, xMid, yMid) < 14 - p.scale ||
-                    distToSegment(p.x, p.y, xMid, yMid, x2, y2) < 14 - p.scale) { 
+                if (distToSegment(p.x, p.y, x1, y1, xMid, yMid) < 4 - p.scale ||  //Shrinks or Expands hit box zone
+                    distToSegment(p.x, p.y, xMid, yMid, x2, y2) < 4 - p.scale) {  //Rotation and angle matter a lot for hits
                   hitBranch = true; break; 
                 }
                 
@@ -934,7 +934,8 @@
                   const localEy = sb.ly + Math.sin(sb.ang)*sb.len;
                   const sx2 = f.x + Math.cos(f.ang)*localEx - Math.sin(f.ang)*localEy;
                   const sy2 = f.y + Math.sin(f.ang)*localEx + Math.cos(f.ang)*localEy;
-                  if (distToSegment(p.x, p.y, sx1, sy1, sx2, sy2) < 8 - p.scale) { hitBranch = true; break; }
+                  // Radius shrank to 3 for sub-branches
+                  if (distToSegment(p.x, p.y, sx1, sy1, sx2, sy2) < 5) { hitBranch = true; break; } //Hit box radius for branches
                 }
                 if (hitBranch) break;
               }
@@ -1564,81 +1565,81 @@
       drawHeists(now);
       for(const b of bugs) if(!b.squished) drawBug(b, now);
       drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
+     // 1. Draw ATTACHED weather first (so it renders under the branches!)
+      const renderWeather = (p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        
+        if (p.type === 'snow') {
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+          ctx.fill();
+        } 
+        else if (p.type === 'rain' || p.type === 'storm') {
+          ctx.globalAlpha = p.alpha;
+          ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
+          ctx.stroke();
+        } 
+        else if (p.type === 'splash') {
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        else if (p.type === 'autumn') {
+          ctx.globalAlpha = p.alpha; 
+          ctx.rotate(p.ang);
+          ctx.scale(p.scale, p.scale);
+          ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
+          ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
+          ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
+          ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
+          ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
+          ctx.shadowColor = 'transparent'; ctx.stroke();
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
+        } 
+        else if (p.type === 'fog') {
+          ctx.globalAlpha = p.alpha;
+          const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
+          fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
+          fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = fogGrad;
+          ctx.beginPath(); 
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
+          ctx.fill();
+        }
+        ctx.restore();
+      };
+      for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
+      // Draw FOREGROUND (Branches render over attached snow)
       drawForeground(now);
-      drawHudInCanvas();
-        // === WEATHER RENDERING ===
-      //Weather Rendering here instead of the bottom of function drawforeground(now), causes the weather will bleed over the hud. FOG might be an issue
-  for (const p of weatherParticles) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    
-    if (p.type === 'snow') {
-      ctx.globalAlpha = p.alpha;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
-      ctx.fill();
-    } 
-    else if (p.type === 'rain' || p.type === 'storm') {
-      ctx.globalAlpha = p.alpha;
-      ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
-      ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      // Stretch the rain drop into a streak based on its falling velocity
-      ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
-      ctx.stroke();
-      } 
-      // Creates Water Droplet Splash
-      else if (p.type === 'splash') {
-        ctx.globalAlpha = p.alpha;
-        ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
-        ctx.beginPath();
-        ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
-        ctx.fill();
+      //  Draw UNATTACHED weather (Falling and landed snow render over the branches)
+      for (const p of weatherParticles) if (!p.attachedTo) renderWeather(p);
+      // Render Thunderstorm Lightning Flash over everything
+      if (lightningFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = lightningFlash * 0.6; 
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+        ctx.restore();
       }
-      // ====End Water Droplet Splash===
-      else if (p.type === 'autumn') {
-      ctx.globalAlpha = p.alpha; //decomposing leaves fade smoothly
-      ctx.rotate(p.ang);
-      ctx.scale(p.scale, p.scale);
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
-      ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
-      ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
-      ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
-      ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
-      ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
-      ctx.shadowColor = 'transparent'; ctx.stroke();
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
-    } 
-    else if (p.type === 'fog') {
-      ctx.globalAlpha = p.alpha;
-      // Massive, soft radial gradients simulating drifting low clouds
-      const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
-      fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
-      fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = fogGrad;
-      ctx.beginPath(); 
-      ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // Render Thunderstorm Lightning Flash over everything
-  if (lightningFlash > 0) {
-    ctx.save();
-    ctx.globalAlpha = lightningFlash * 0.6; // Max 60% whiteout so it doesn't blind the player
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
-    ctx.restore();
-  }
-  // === END WEATHER RENDERING ===
+      // === END WEATHER RENDERING ===
+      // Draw HUD absolutely last so weather never blocks hearts/tools
+      drawHudInCanvas();
+      
       if(cine) drawCine(now);
       if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
       if (now < hitStopUntil) {
