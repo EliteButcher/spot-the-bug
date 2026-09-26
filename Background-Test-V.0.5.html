@@ -507,42 +507,44 @@
       for(let tries=0; tries<40; tries++){
         const r = 40 + Math.random()*20; 
         const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
-        const y = 90 + r + Math.random()*(Hv - 180 - 2*r);
-        
+        const y = 90 + r + Math.random()*(Hv - 180 - 2*r);        
         const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
-        if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
-          let blades = [];
-          const spineAngle = Math.random() * Math.PI * 2;
-          const spineLen = r * (3.0 + Math.random() * 2); 
-          const spineCurve = (Math.random() - 0.5) * r * 3.5; 
-          const numBlades = Math.floor(350 + Math.random() * 150); 
-          
-          for(let k=0; k<numBlades; k++){ 
-            const t = (Math.random() + Math.random()) / 2; 
-            const sx = (t - 0.5) * spineLen;
-            const sy = Math.sin(t * Math.PI) * spineCurve;
-            const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
-            const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
-            const ang = Math.random() * Math.PI * 2;
-            const lx = sx + Math.cos(ang) * scatter;
-            const ly = sy + Math.sin(ang) * scatter;
-            const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
-            const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);
-            if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
-            if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
-
-            blades.push({
-              ox: ox, oy: oy,
-              an: -Math.PI/2 + (Math.random()-0.5)*0.8,
-              len: r * (0.3 + Math.random()*0.8),
-              hue: 65 + Math.random()*40,
-              lum: 20 + Math.random()*30,
-              sway: Math.random()*Math.PI*2
-            });
-          }
-          overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
-          break;
-        }
+     // Bumped base avoidance to 230 to account for the massive spine lengths
+      if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
+        let blades = [];        
+        const spineAngle = Math.random() * Math.PI * 2;
+        const spineLen = r * (3.0 + Math.random() * 2); 
+        const spineCurve = (Math.random() - 0.5) * r * 3.5;         
+        // Boosted density to pack the shape without needing a second render pass
+        const numBlades = Math.floor(350 + Math.random() * 150);         
+        for(let k=0; k<numBlades; k++){ 
+          const t = (Math.random() + Math.random()) / 2; 
+          const sx = (t - 0.5) * spineLen;
+          const sy = Math.sin(t * Math.PI) * spineCurve;          
+          const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
+          const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
+          const ang = Math.random() * Math.PI * 2;          
+          const lx = sx + Math.cos(ang) * scatter;
+          const ly = sy + Math.sin(ang) * scatter;          
+          const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
+          const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);          
+          // BLADE-LEVEL CULLING: Safely deletes any individual blade that touches the nest or sugar
+          if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
+          if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
+          blades.push({
+            ox: ox,
+            oy: oy,
+            an: -Math.PI/2 + (Math.random()-0.5)*0.8,
+            len: r * (0.3 + Math.random()*0.8),
+            hue: 65 + Math.random()*40, // Keeping your current Summer hues
+            sat: 50,                    // PREP FOR PHASE 2: Added saturation baseline
+            lum: 20 + Math.random()*30, // Keeping your current Summer luminosity
+            sway: Math.random()*Math.PI*2
+          });
+        }        
+        overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
+        break;
+      }
       }
     }
     for(let tries=0; tries<40; tries++){
@@ -1495,47 +1497,42 @@
     for(const f of overgrowth){
       ctx.save(); ctx.translate(f.x, f.y);
       
-    if(f.type === 'grass') {
-        ctx.save();
-        ctx.rotate(f.spineAngle); 
-        ctx.lineCap = 'round';
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-        ctx.shadowColor = 'rgba(10, 15, 10, 0.4)'; 
-        ctx.shadowBlur = 20; 
-        ctx.strokeStyle = 'rgba(15, 22, 12, 0.1)'; 
-        ctx.lineWidth = f.r * 0.85; 
-        ctx.beginPath();
-        ctx.moveTo(-f.spineLen/2, 0);
-        ctx.quadraticCurveTo(0, f.spineCurve * 2, f.spineLen/2, 0);
-        ctx.stroke();
-        ctx.restore(); 
-        ctx.lineCap = 'round';
-        for(const b of f.blades){
-          let bend = wind.vx * 0.05; 
-          let partAlpha = 1;
-          const wx = f.x + b.ox, wy = f.y + b.oy;
-          for(const ant of bugs) {
-            if(ant.squished) continue;
-            const dist = Math.hypot(ant.x - wx, ant.y - wy);
-            if(dist < 28) { 
-              bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
-              partAlpha = 0.55; 
-            }
+ if(f.type === 'grass') {
+      ctx.lineCap = 'round';
+      
+      for(const b of f.blades){
+        let bend = wind.vx * 0.05; 
+        let partAlpha = 0.9; // Baseline transparency prevents harsh overlapping lines
+        const wx = f.x + b.ox, wy = f.y + b.oy;
+
+        for(const ant of bugs) {
+          if(ant.squished) continue;
+          const dist = Math.hypot(ant.x - wx, ant.y - wy);
+          if(dist < 28) { 
+            bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
+            partAlpha = 0.4; // Aggressive transparency drop so ants are never lost
           }
-          const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
-          ctx.strokeStyle = `hsla(${b.hue + 10}, 45%, ${b.lum - 10}%, ${partAlpha * 0.9})`;
-          ctx.lineWidth = 5.5; 
-          const shortLen = b.len * 0.6;
-          const cp1x = b.ox + Math.cos(b.an) * shortLen * 0.45;
-          const cp1y = b.oy + Math.sin(b.an) * shortLen * 0.45;
-          const cp2x = b.ox + Math.cos(finalAn) * shortLen * 0.8;
-          const cp2y = b.oy + Math.sin(finalAn) * shortLen * 0.8;
-          const endX = b.ox + Math.cos(finalAn) * shortLen;
-          const endY = b.oy + Math.sin(finalAn) * shortLen;
-          ctx.beginPath(); ctx.moveTo(b.ox, b.oy); 
-          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
-          ctx.stroke();
         }
+
+        const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
+        
+        // Dynamically applies hue, saturation, and luminosity from the generator
+        ctx.strokeStyle = `hsla(${b.hue}, ${b.sat}%, ${b.lum}%, ${partAlpha})`;
+        ctx.lineWidth = 2.5; 
+        
+        const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
+        const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
+        const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
+        const cp2y = b.oy + Math.sin(finalAn) * b.len * 0.8;
+        const endX = b.ox + Math.cos(finalAn) * b.len;
+        const endY = b.oy + Math.sin(finalAn) * b.len;
+
+        ctx.beginPath(); 
+        ctx.moveTo(b.ox, b.oy); 
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+        ctx.stroke();
+      }
+    }
         for(const b of f.blades){
           let bend = wind.vx * 0.05; 
           let partAlpha = 1;
