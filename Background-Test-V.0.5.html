@@ -185,7 +185,7 @@
 <div id="frame">
   <header>
     <span class="title">SPOT THE BUG ⚠ TEST</span>
-    <span id="hud">ROUND <b id="r">1</b> · SCORE <b id="s">0</b> · HI <b id="hi">0</b></span>
+    <span id="hud">ROUND <b id="r">1</b> · SCORE <b id="s">0</b> <span id="stk-badge" style="display:none; transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-left:4px; font-weight:bold;">🔥x<b id="stk">0</b></span> · HI <b id="hi">0</b></span>
   </header>
   <div id="status">
     <span id="hearts">●●●●●</span>
@@ -2001,26 +2001,63 @@ function rollOvergrowth(season = 'summer'){
       gain = Math.floor(gain * 1.5);
       flashTag('\u26a1 QUICK DRAW! +50% SCORE', '#f0c14b');
     }
+    
+    // The Combo Multiplier
+    let multi = Math.max(1, streak);
+    gain = gain * multi;
+
     hitStopUntil = gameNow + 150;
     if(navigator.vibrate) navigator.vibrate(40);
     addScore(gain);
     sfxSafe(()=>sfx.catch());
     if(!skipErnie) maybeGrantErnie();    
-    // Determine color and size based on Quick Draw
+    
+    // Heat Gauge DOM Updates
+    const $stkBadge = document.getElementById('stk-badge');
+    const $stk = document.getElementById('stk');
+    if ($stkBadge &&$stk) {
+      if (streak >= 2) {
+        $stkBadge.style.display = 'inline-block';$stk.textContent = streak;
+        // Shift colors based on heat tier
+        $stkBadge.style.color = streak < 4 ? '#ffb347' : (streak < 7 ? '#ff7e47' : '#ff5d6c');
+        $stkBadge.style.textShadow = streak >= 7 ? '0 0 8px #ff5d6c' : 'none';
+        
+        // Physical pop and throb
+        $stkBadge.style.transform = `scale(${1 + Math.min(streak * 0.1, 0.8)})`;
+        setTimeout(() => $stkBadge.style.transform = 'scale(1)', 150);
+      }
+    }
+
+    // Determine color and size based on Quick Draw and Streak
     const isCrit = timeTaken <= 3000;
+    const isMega = streak >= 5;
+    
     floatingTexts.push({
       x: b.x, y: b.y, 
-      text: isCrit ? '⚡ QUICK +' + gain : 'CAUGHT +' + gain, 
-      color: isCrit ? '#f0c14b' : '#39d98a',
-      t: gameNow, life: 1200, scale: isCrit ? 1.4 : 1.0
+      text: isCrit ? '⚡ QUICK +' + gain : (isMega ? '🔥 COMBO +' + gain : 'CAUGHT +' + gain), 
+      color: isCrit ? '#f0c14b' : (isMega ? '#ff7e47' : '#39d98a'),
+      t: gameNow, life: 1200, scale: isCrit || isMega ? 1.4 : 1.0
     });
     
     transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
-  }
   function hitWrong(b){
-    lives--; streak=0; sfxSafe(()=>sfx.splat());
+    lives--; 
+    sfxSafe(()=>sfx.splat());
     if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
-   if(b && !b.squished){ 
+    
+    // The Shatter Effect (Loss Aversion)
+    if (streak >= 3) {
+      floatingTexts.push({
+        x: cv.clientWidth / 2, y: cv.clientHeight * 0.35, 
+        text: `💔 x${streak} COMBO BROKEN!`, color: '#ff5d6c',
+        t: gameNow, life: 2200, scale: 2.2
+      });
+    }
+    
+    streak = 0;
+    if (document.getElementById('stk-badge')) document.getElementById('stk-badge').style.display = 'none';
+
+   if(b && !b.squished){
       b.squished=true; b.carrying=false; splats.push({x:b.x, y:b.y}); 
       floatingTexts.push({
         x: b.x, y: b.y, text: '❌ SPLAT', color: '#ff5d6c',
