@@ -426,15 +426,32 @@
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
     weatherParticles=[]; lightningFlash=0; // Wipes the old weather instantly
+    
     const ti = (round - 1) % themes.length;
     if (ti === 1 || ti === 2) { // Rain or Storm
-      puddle = {
-        x: 100 + Math.random() * (Wv - 200),
-        y: 150 + Math.random() * (Hv - 300),
-        r: 0,
-        maxR: 90 + Math.random() * 60,
-        growth: ti === 2 ? 3 : 1.5 // Storms fill the puddle twice as fast
-      };
+      let px, py, pr, valid = false, tries = 0;
+      
+      while (!valid && tries < 40) {
+        pr = 90 + Math.random() * 60; // Max radius
+        px = 100 + Math.random() * (Wv - 200);
+        py = 150 + Math.random() * (Hv - 300);
+        valid = true;        
+        // Check Rocks so puddle edge cannot touch the rock edge at all
+        for (const pb of pebbles) {
+          if (Math.hypot(px - pb.x, py - pb.y) < pb.r + pr + 15) { valid = false; break; }
+        }        
+        // Check Grass: 20% overlap at max growth (distance must be > grass radius + 80% of puddle radius)
+        if (valid) {
+          for (const f of overgrowth) {
+            if (f.type === 'grass' && Math.hypot(px - f.x, py - f.y) < f.r + pr * 0.8) { 
+              valid = false; break; 
+            }
+          }
+        }
+        tries++;
+      }
+      
+      puddle = { x: px, y: py, r: 0, maxR: pr, growth: ti === 2 ? 3 : 1.5 };
     } else {
       puddle = null;
     }
@@ -1371,14 +1388,17 @@
     }
     ctx.shadowColor = 'transparent';
     // Draw the growing puddle with wind ripples
+    // Draw the growing puddle with wind ripples and a dark mud perimeter
     if (puddle && puddle.r > 0) {
       ctx.save();
       ctx.translate(puddle.x, puddle.y);
-      let ripple = wind.active ? Math.sin(gameNow / 100) * (wind.intensity * 4) : 0;      
+      let ripple = wind.active ? Math.sin(gameNow / 100) * (wind.intensity * 4) : 0; 
       const pGrad = ctx.createRadialGradient(ripple, 0, 0, 0, 0, puddle.r);
-      pGrad.addColorStop(0, 'rgba(80, 110, 130, 0.5)');
-      pGrad.addColorStop(0.7, 'rgba(100, 130, 150, 0.3)');
-      pGrad.addColorStop(1, 'rgba(0,0,0,0)');      
+      pGrad.addColorStop(0, 'rgba(80, 110, 130, 0.6)');
+      pGrad.addColorStop(0.75, 'rgba(100, 130, 150, 0.4)');
+      // Sharp, dark "wet dirt" ring right around the expanding edge
+      pGrad.addColorStop(0.92, 'rgba(20, 15, 10, 0.45)'); 
+      pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)'); 
       ctx.fillStyle = pGrad;
       ctx.beginPath();
       ctx.ellipse(0, 0, puddle.r, puddle.r * 0.65, 0, 0, Math.PI * 2);
@@ -1611,8 +1631,8 @@
     //Start Types    
        if (p.type === 'snow') {
           ctx.globalAlpha = p.alpha;
-          if (p.scale > 2.2) {
-            // Draw large geometric snowflakes instead of large dots
+          // Draw geometric stars ONLY if they are actively falling
+          if (p.scale > 2.2 && !p.landed && !p.attachedTo) {
             ctx.rotate(p.ang); 
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = p.scale * 0.3;
@@ -1624,7 +1644,8 @@
             }
             ctx.stroke();
           } else {
-            // Draw small background snow as dots
+            // If landed or attached, draw as a soft packed snowball
+            // The stars landing look like spiderwebs and then splooge on a tree lol
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
             ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
