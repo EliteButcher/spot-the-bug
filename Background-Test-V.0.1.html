@@ -238,7 +238,7 @@
   let transition=null, cine=null, captureFx=null, hitStopUntil=0;
   let floatingTexts = [], overgrowth = [], giantLeaves = [], nextWindAt = 10000;
   // === DYNAMIC WEATHER STATE ===
-  let weatherParticles = [], lightningFlash = 0;
+  let weatherParticles = [], lightningFlash = 0, puddle = null; //Lightning and Puddle
   let wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
   const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
   const tag = document.getElementById('tag'), banner = document.getElementById('banner');
@@ -426,7 +426,18 @@
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
     weatherParticles=[]; lightningFlash=0; // Wipes the old weather instantly
-    
+    const ti = (round - 1) % themes.length;
+    if (ti === 1 || ti === 2) { // Rain or Storm
+      puddle = {
+        x: 100 + Math.random() * (Wv - 200),
+        y: 150 + Math.random() * (Hv - 300),
+        r: 0,
+        maxR: 90 + Math.random() * 60,
+        growth: ti === 2 ? 3 : 1.5 // Storms fill the puddle twice as fast
+      };
+    } else {
+      puddle = null;
+    }
     for(let i=0;i<n;i++){
       const c=i%cols, r0=Math.floor(i/cols);
       const toNest = Math.random()<0.5;
@@ -576,7 +587,8 @@
     obstacleCache=null; obstacleCache=obstacles();
     const t = (now-roundStart)/1000;
     const Wv = cv.clientWidth, Hv = cv.clientHeight;
-    if(!frozen && t>3 && t<3.05 && Math.floor(t*20)%2===0 && lastTick!==Math.floor(t)){} 
+    if(!frozen && t>3 && t<3.05 && Math.floor(t*20)%2===0 && lastTick!==Math.floor(t)){}; 
+    if (puddle && !frozen) puddle.r = Math.min(puddle.maxR, puddle.r + dt * puddle.growth);
     const sp = speed();
     for(const b of bugs){
       if(b.squished) continue; 
@@ -589,10 +601,20 @@
       }
       const isB = (b===bugBug);
       let f = 1;
-      if(!frozen){
-        if(isB && anom.id==='fast') f = 2.7 - Math.min(round*0.08, 0.5);   
-        if(isB && anom.id==='slow') f = 0.4 + Math.min(round*0.02, 0.1);   
-        b.t += dt*f;
+          if(!frozen){
+            if(isB && anom.id==='fast') f = 2.7 - Math.min(round*0.08, 0.5);   
+            if(isB && anom.id==='slow') f = 0.4 + Math.min(round*0.02, 0.1);              
+            // Puddle slow-down tiers based on depth
+            if (puddle) {
+              const pd = Math.hypot(b.x - puddle.x, b.y - puddle.y);
+              if (pd < puddle.r) {
+                let depthRatio = pd / (puddle.r || 1);
+                if (depthRatio < 0.33) f *= 0.75; // Center: -25% speed
+                else if (depthRatio < 0.66) f *= 0.82; // Middle: -18% speed
+                else f *= 0.90; // Edge: -10% speed
+              }
+            }            
+            b.t += dt*f;
         let tg = targetFor(b);
         if(now<(b.startledUntil||0)) continue;
         if(isB && anom.id==='steal' && heistT>0 && heistT<2.2){
@@ -961,18 +983,22 @@
             if (hitAnt) {
               hitAnt.drops = hitAnt.drops || [];
               hitAnt.drops.push({ t: 0, xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, speed: 1.5 + Math.random() });
+            }            
+            // Only spawn bouncing splashes off hard surfaces and ants
+            if (hitAnt || hitBranch || hitRock) {
+              let splashCount = 2 + Math.floor(Math.random() * 2);
+              for(let s = 0; s < splashCount; s++) {
+                weatherParticles.push({
+                  type: 'splash', x: p.x, y: p.y,
+                  vx: (Math.random() - 0.5) * 80 + currentWind, vy: -40 - Math.random() * 60,
+                  alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
+                });
+              }
             }
-            let splashCount = 2 + Math.floor(Math.random() * 2);
-            for(let s = 0; s < splashCount; s++) {
-              weatherParticles.push({
-                type: 'splash', x: p.x, y: p.y,
-                vx: (Math.random() - 0.5) * 80 + currentWind, vy: -40 - Math.random() * 60,
-                alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
-              });
-            }
+            
             weatherParticles.splice(i, 1); continue;
           }
-        } 
+        }
         else if (p.type === 'snow') {
           if (hitAnt) {
             // Only a small 12% chance for a snowflake to stick
@@ -1113,7 +1139,10 @@
     const darkCol = `hsl(${b.hue}, 60%, 15%)`;
     ctx.shadowColor = 'rgba(0,0,0,0.6)';
     ctx.shadowBlur = 6; ctx.shadowOffsetY = 4;
-    ctx.strokeStyle = darkCol; ctx.lineWidth = b.w * 0.15; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = darkCol; ctx.lineWidth = b.w * 0.15; ctx.lineCap = 'round'; ctx.lineJoin = 'round';    
+    // Fade the legs to 15% opacity if the ant is submerged in the puddle
+    let inPuddle = puddle && Math.hypot(b.x - puddle.x, b.y - puddle.y) < puddle.r * 0.85;
+    ctx.globalAlpha = inPuddle ? 0.15 : 1.0;    
     for(let s=-1;s<=1;s+=2){
       for(let l=0;l<3;l++){
         const ly = -b.w*0.2 + l*b.w*0.35;
@@ -1123,6 +1152,7 @@
         ctx.beginPath(); ctx.moveTo(s*b.w*0.2, ly); ctx.lineTo(jx, jy); ctx.lineTo(ex, ey); ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1.0; // Reset alpha for the main body
     ctx.shadowColor = 'transparent';
     const abdGrad = ctx.createRadialGradient(0, b.w*0.3, b.w*0.1, 0, b.w*0.4, b.w*0.8);
     abdGrad.addColorStop(0, lightCol); abdGrad.addColorStop(0.4, baseCol); abdGrad.addColorStop(1, darkCol);
@@ -1217,8 +1247,8 @@
       // 9. Summer Noon
       { base: '#7c9e3f', dirt: '#694b32', glow: 'rgba(255,230,150,0.18)', shadow: 'rgba(20,10,0,0.15)', gritDark: 'rgba(40,20,10,0.3)', gritLight: 'rgba(255,240,200,0.25)', density: 8500 },
       // --- The 4 Original Classic Themes ---
-      // 10. Coarse Dirt
-      { base: '#131512', dirt: '#131512', glow: 'rgba(0,0,0,0.6)', shadow: 'rgba(0,0,0,0.6)', gritDark: 'rgba(0,0,0,0.5)', gritLight: 'rgba(255,255,255,0.03)', density: 7000 },
+     // 10. Coarse Dirt
+      { base: '#3a2d24', dirt: '#2e221b', glow: 'rgba(0,0,0,0.6)', shadow: 'rgba(0,0,0,0.8)', gritDark: 'rgba(20,10,0,0.5)', gritLight: 'rgba(255,255,255,0.05)', density: 7000 },
       // 11. Smooth Dirt
       { base: '#2b1f16', dirt: '#2b1f16', glow: 'rgba(20,10,5,0.5)', shadow: 'rgba(20,10,5,0.5)', gritDark: 'rgba(0,0,0,0.2)', gritLight: 'rgba(255,255,255,0.02)', density: 2500 },
       // 12. Clay
@@ -1340,8 +1370,29 @@
       ctx.beginPath(); ctx.ellipse(p.x-p.r*0.3, p.y-p.r*0.3, p.r*0.4, p.r*0.25, p.x%2, 0, Math.PI*2); ctx.fill();
     }
     ctx.shadowColor = 'transparent';
-  }
-
+    // Draw the growing puddle with wind ripples
+    if (puddle && puddle.r > 0) {
+      ctx.save();
+      ctx.translate(puddle.x, puddle.y);
+      let ripple = wind.active ? Math.sin(gameNow / 100) * (wind.intensity * 4) : 0;      
+      const pGrad = ctx.createRadialGradient(ripple, 0, 0, 0, 0, puddle.r);
+      pGrad.addColorStop(0, 'rgba(80, 110, 130, 0.5)');
+      pGrad.addColorStop(0.7, 'rgba(100, 130, 150, 0.3)');
+      pGrad.addColorStop(1, 'rgba(0,0,0,0)');      
+      ctx.fillStyle = pGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, puddle.r, puddle.r * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      if (wind.active && wind.intensity > 0.1) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(ripple, 0, puddle.r * 0.5, puddle.r * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(ripple*1.5, 0, puddle.r * 0.25, puddle.r * 0.15, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } 
   function drawSplats(){
     for(const s of splats){
       ctx.save(); ctx.translate(s.x, s.y);
@@ -1557,14 +1608,29 @@
       const renderWeather = (p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
-        
-        if (p.type === 'snow') {
+    //Start Types    
+       if (p.type === 'snow') {
           ctx.globalAlpha = p.alpha;
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
-          ctx.fill();
-        } 
+          if (p.scale > 2.2) {
+            // Draw large geometric snowflakes instead of large dots
+            ctx.rotate(p.ang); 
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = p.scale * 0.3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            for(let k=0; k<6; k++) {
+              ctx.moveTo(0,0);
+              ctx.lineTo(Math.cos(k*Math.PI/3)*p.scale*1.8, Math.sin(k*Math.PI/3)*p.scale*1.8);
+            }
+            ctx.stroke();
+          } else {
+            // Draw small background snow as dots
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
         else if (p.type === 'rain' || p.type === 'storm') {
           ctx.globalAlpha = p.alpha;
           ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
@@ -1610,7 +1676,8 @@
           ctx.fill();
         }
         ctx.restore();
-      };
+      }; // <-- This cleanly ends the renderWeather function
+      // Draw ATTACHED weather first
       for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
       // Draw FOREGROUND (Branches render over attached snow)
       drawForeground(now);
