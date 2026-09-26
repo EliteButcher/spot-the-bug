@@ -504,7 +504,7 @@ function spawn(){
     }
   }
 
- function rollOvergrowth(){
+ function rollOvergrowth(season = 'summer'){
     overgrowth=[]; giantLeaves=[];
     const Wv = cv.clientWidth, Hv = cv.clientHeight;
     const numGrass = 2 + Math.floor(Math.random()*2);
@@ -513,82 +513,76 @@ function spawn(){
       for(let tries=0; tries<40; tries++){
         const r = 40 + Math.random()*20; 
         const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
-        const y = 90 + r + Math.random()*(Hv - 180 - 2*r);
-        
+        const y = 90 + r + Math.random()*(Hv - 180 - 2*r);        
         const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
-
+        
         if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
-          
-          // PHASE 2: Seasonal Grass Appearance & Physics mapped to the 14 themes
-          const themeIndex = (round - 1) % 14; 
-          
-          // Summer (Default): Crunchy, medium density, stiff
-          let gHue = 65, gSat = 50, gLum = 20, gBaseAlpha = 0.9, gGhostAlpha = 0.4;
-          let gDensity = 300, gLength = 0.8, gFlex = 0.03; 
-
-          if (themeIndex === 0) { 
-            // Winter: Sparse, short, completely frozen/stiff
-            gHue = 45; gSat = 25; gLum = 50; 
-            gBaseAlpha = 0.7; gGhostAlpha = 0.3;
-            gDensity = 150; gLength = 0.4; gFlex = 0.01; 
-          } else if (themeIndex === 1 || themeIndex === 2 || themeIndex === 6 || themeIndex === 7) { 
-            // Spring: Dense, tall, highly flexible in the wind
-            gHue = 110; gSat = 75; gLum = 35; 
-            gBaseAlpha = 0.85; gGhostAlpha = 0.15; // Aggressive transparency for ants
-            gDensity = 450; gLength = 1.1; gFlex = 0.08; 
-          } else if (themeIndex === 3 || themeIndex === 4 || themeIndex === 5) { 
-            // Fall: Stabilizing density, medium height, slightly rigid
-            gHue = 35; gSat = 65; gLum = 30; 
-            gBaseAlpha = 0.9; gGhostAlpha = 0.35;
-            gDensity = 250; gLength = 0.7; gFlex = 0.04; 
-          }
-
-          let blades = [];
+          let blades = [];        
           const spineAngle = Math.random() * Math.PI * 2;
           const spineLen = r * (3.0 + Math.random() * 2); 
-          const spineCurve = (Math.random() - 0.5) * r * 3.5; 
-          
-          // Apply the season's density physics
-          const numBlades = Math.floor(gDensity + Math.random() * (gDensity * 0.5)); 
+          const spineCurve = (Math.random() - 0.5) * r * 3.5;         
+          // Restored the dense 800+ blade count
+          const numBlades = Math.floor(800 + Math.random() * 200);         
           
           for(let k=0; k<numBlades; k++){ 
             const t = (Math.random() + Math.random()) / 2; 
             const sx = (t - 0.5) * spineLen;
-            const sy = Math.sin(t * Math.PI) * spineCurve;
-            
+            const sy = Math.sin(t * Math.PI) * spineCurve;          
             const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
             const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
-            const ang = Math.random() * Math.PI * 2;
-            
+            const ang = Math.random() * Math.PI * 2;          
             const lx = sx + Math.cos(ang) * scatter;
-            const ly = sy + Math.sin(ang) * scatter;
-            
+            const ly = sy + Math.sin(ang) * scatter;          
             const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
-            const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);
+            const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);          
             
             if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
             if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
-
+            
+            let bHue, bSat, bLum, bLen;
+            if (season === 'spring') {
+              bHue = 90 + Math.random() * 30;  
+              bSat = 70 + Math.random() * 20;  
+              bLum = 35 + Math.random() * 25;  
+              bLen = r * (0.4 + Math.random() * 0.9); 
+            } 
+            else if (season === 'fall') {
+              bHue = 40 + Math.random() * 40;  
+              bSat = 35 + Math.random() * 25;  
+              bLum = 25 + Math.random() * 20;  
+              bLen = r * (0.3 + Math.random() * 0.7); 
+            } 
+            else if (season === 'winter') {
+              if (Math.random() < 0.6) continue;              
+              bHue = 35 + Math.random() * 15;  
+              bSat = 15 + Math.random() * 15;  
+              bLum = 40 + Math.random() * 20;  
+              bLen = r * (0.15 + Math.random() * 0.3); 
+            } 
+            else {
+              bHue = 65 + Math.random() * 40;  
+              bSat = 50;                       
+              bLum = 20 + Math.random() * 30;  
+              bLen = r * (0.3 + Math.random() * 0.8); 
+            }
+            
             blades.push({
               ox: ox,
               oy: oy,
               an: -Math.PI/2 + (Math.random()-0.5)*0.8,
-              len: r * (0.3 + Math.random() * gLength), // Apply the season's height physics
-              hue: gHue + Math.random()*20 - 10,
-              sat: gSat + Math.random()*20 - 10, 
-              lum: gLum + Math.random()*20 - 10, 
-              sway: Math.random()*Math.PI*2
+              len: bLen,
+              hue: bHue,
+              sat: bSat,
+              lum: bLum,
+              sway: season === 'winter' ? 0 : Math.random()*Math.PI*2 
             });
-          }
-          
-          // Pack the transparency and wind resistance rules directly into the patch object
-          overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve, baseAlpha: gBaseAlpha, ghostAlpha: gGhostAlpha, flex: gFlex });
+          }        
+          overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
           break;
         }
       }
     }
     
-    // Original Branch Logic Remains Untouched
     for(let tries=0; tries<40; tries++){
       const x = 100 + Math.random()*(Wv - 200);
       const y = 150 + Math.random()*(Hv - 300);
@@ -639,6 +633,7 @@ function spawn(){
       }
     }
   }
+
   function targetFor(b){
     const Wv=cv.clientWidth, Hv=cv.clientHeight;
     return b.phase==='toNest' ? {x:nestX, y:nestY} : {x:sugarX, y:sugarY};
@@ -1534,46 +1529,45 @@ function spawn(){
     ctx.restore();
   }
 
-function drawForeground(now){
+  function drawForeground(now){
     for(const f of overgrowth){
       ctx.save(); ctx.translate(f.x, f.y);
       
-      if(f.type === 'grass') {
-        ctx.lineCap = 'round';
-        
-        for(const b of f.blades){
-          let bend = wind.vx * f.flex; 
-          let partAlpha = f.baseAlpha; 
-          const wx = f.x + b.ox, wy = f.y + b.oy;
+ if(f.type === 'grass') {
+      ctx.lineCap = 'round';
+      
+      for(const b of f.blades){
+        let bend = wind.vx * 0.05; 
+        let partAlpha = 0.9; // Baseline transparency prevents harsh overlapping lines
+        const wx = f.x + b.ox, wy = f.y + b.oy;
 
-          for(const ant of bugs) {
-            if(ant.squished) continue;
-            const dist = Math.hypot(ant.x - wx, ant.y - wy);
-            if(dist < 28) { 
-              bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
-              partAlpha = f.ghostAlpha; 
-            }
+        for(const ant of bugs) {
+          if(ant.squished) continue;
+          const dist = Math.hypot(ant.x - wx, ant.y - wy);
+          if(dist < 28) { 
+            bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 1.1; // Increase ) * 0.9; for more bend. Starting value of 0.9
+            partAlpha = 0.4; // Aggressive transparency drop so ants are never lost
           }
-
-          const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
-          
-          ctx.strokeStyle = `hsla(${b.hue}, ${b.sat}%, ${b.lum}%, ${partAlpha})`;
-          ctx.lineWidth = 2.5; 
-          
-          const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
-          const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
-          const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
-          const cp2y = b.oy + Math.sin(finalAn) * b.len * 0.8;
-          const endX = b.ox + Math.cos(finalAn) * b.len;
-          const endY = b.oy + Math.sin(finalAn) * b.len;
-
-          ctx.beginPath(); 
-          ctx.moveTo(b.ox, b.oy); 
-          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
-          ctx.stroke();
         }
+        const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;        
+        // Dynamically applies hue, saturation, and luminosity from the generator
+        ctx.strokeStyle = `hsla(${b.hue}, ${b.sat}%, ${b.lum}%, ${partAlpha})`;
+        ctx.lineWidth = 2.5; 
+        
+        const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
+        const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
+        const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
+        const cp2y = b.oy + Math.sin(finalAn) * b.len * 0.8;
+        const endX = b.ox + Math.cos(finalAn) * b.len;
+        const endY = b.oy + Math.sin(finalAn) * b.len;
+
+        ctx.beginPath(); 
+        ctx.moveTo(b.ox, b.oy); 
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+        ctx.stroke();
       }
-      else if (f.type === 'branch') {
+    }        
+   else if (f.type === 'branch') {
         ctx.rotate(f.ang);
         ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
         ctx.fillStyle = '#2a3438';
@@ -1628,29 +1622,6 @@ function drawForeground(now){
       }
       ctx.restore();
     }
-    
-    for(const gl of giantLeaves){
-      ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
-      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
-      ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
-      ctx.scale(gl.scale/100, gl.scale/100); 
-      ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 35); 
-      ctx.quadraticCurveTo(15, 10, 35, 15); 
-      ctx.quadraticCurveTo(20, -5, 45, -20); 
-      ctx.quadraticCurveTo(15, -15, 0, -55); 
-      ctx.quadraticCurveTo(-15, -15, -45, -20); 
-      ctx.quadraticCurveTo(-20, -5, -35, 15); 
-      ctx.quadraticCurveTo(-15, 10, 0, 35); 
-      ctx.fill(); ctx.stroke();
-      ctx.shadowColor = 'transparent';
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
-      ctx.restore();
-    }
   }
 
   function draw(now){
@@ -1663,12 +1634,14 @@ function drawForeground(now){
       drawHeists(now);
       for(const b of bugs) if(!b.squished) drawBug(b, now);
       drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
-      
+     // 1. Draw ATTACHED weather first (so it renders under the branches!)
       const renderWeather = (p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
+    //Start Types    
        if (p.type === 'snow') {
           ctx.globalAlpha = p.alpha;
+          // Draw geometric stars ONLY if they are actively falling
           if (p.scale > 2.2 && !p.landed && !p.attachedTo) {
             ctx.rotate(p.ang); 
             ctx.strokeStyle = '#ffffff';
@@ -1681,6 +1654,8 @@ function drawForeground(now){
             }
             ctx.stroke();
           } else {
+            // If landed or attached, draw as a soft packed snowball
+            // The stars landing look like spiderwebs and then splooge on a tree lol
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
             ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
@@ -1732,12 +1707,14 @@ function drawForeground(now){
           ctx.fill();
         }
         ctx.restore();
-      }; 
-      
+      }; // <-- This cleanly ends the renderWeather function
+      // Draw ATTACHED weather first
       for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
+      // Draw FOREGROUND (Branches render over attached snow)
       drawForeground(now);
+      //  Draw UNATTACHED weather (Falling and landed snow render over the branches)
       for (const p of weatherParticles) if (!p.attachedTo) renderWeather(p);
-      
+      // Render Thunderstorm Lightning Flash over everything
       if (lightningFlash > 0) {
         ctx.save();
         ctx.globalAlpha = lightningFlash * 0.6; 
@@ -1745,7 +1722,30 @@ function drawForeground(now){
         ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
         ctx.restore();
       }
-
+      // === END WEATHER RENDERING ===
+      for(const gl of giantLeaves){
+      ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
+      ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
+      ctx.scale(gl.scale/100, gl.scale/100); 
+      ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 35); 
+      ctx.quadraticCurveTo(15, 10, 35, 15); 
+      ctx.quadraticCurveTo(20, -5, 45, -20); 
+      ctx.quadraticCurveTo(15, -15, 0, -55); 
+      ctx.quadraticCurveTo(-15, -15, -45, -20); 
+      ctx.quadraticCurveTo(-20, -5, -35, 15); 
+      ctx.quadraticCurveTo(-15, 10, 0, 35); 
+      ctx.fill(); ctx.stroke();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+      ctx.restore();
+    }
+      // Draw HUD absolutely last so weather never blocks hearts/tools
       drawHudInCanvas();
       
       if(cine) drawCine(now);
@@ -2077,4 +2077,3 @@ function drawForeground(now){
 </script>
 </body>
 </html>
-
