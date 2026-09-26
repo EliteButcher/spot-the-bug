@@ -796,7 +796,7 @@
         type: weather,
         x: Math.random() * cv.clientWidth,
         // Pre-fill the screen during the first 0.2 seconds of the round. Prevents only top half of phone having weather
-        y: (weather === 'fog' || t < 0.2) ? Math.random() * cv.clientHeight : -20,
+        y: (weather === 'fog' || t < 0.5) ? Math.random() * cv.clientHeight : -20,
         vx: (Math.random() - 0.5) * 10,
         vy: 10, ang: Math.random() * Math.PI * 2,
         spin: 0, scale: 1, alpha: 1,
@@ -842,13 +842,14 @@
     let p = weatherParticles[i];
     if (!frozen) {
       
-      // 1. Attached Particles Logic
+     // 1. Attached Particles Logic
       if (p.attachedTo) {
         if (p.stickTime !== 99999) p.stickTime -= dt;
-        if (p.stickTime <= 0 || p.attachedTo.squished) {
+        // The wind rips attached snow and leaves right off their backs!
+        if (p.stickTime <= 0 || p.attachedTo.squished || (wind.active && Math.random() < 0.04)) {
           p.attachedTo = null; // Unstick!
-          p.vx = (Math.random() > 0.5 ? 1 : -1) * 30; // Slide off
-          p.vy = 40; 
+          p.vx = (Math.random() > 0.5 ? 1 : -1) * 30 + (wind.active ? wind.vx * 1.5 : 0); 
+          p.vy = wind.active ? -10 - Math.random() * 30 : 40; 
         } else {
           // Stick to the ant's back
           p.x = p.attachedTo.x + p.offsetX;
@@ -859,6 +860,15 @@
 
       // 2. Accumulated Snow & Leaves (Logs, Rocks & Ground)
       if (p.landed) {
+        // Massive wind gusts peel accumulated snow and leaves back into the air
+        if (wind.active && wind.intensity > 0.3 && Math.random() < 0.03) {
+          p.landed = false;
+          p.hitRock = false;
+          p.vy = -20 - Math.random() * 50; // Lift up into the air
+          p.vx = wind.vx * (p.type === 'snow' ? 2 : 1.5); // Fling sideways
+          continue;
+        }
+
         p.landedTimer = (p.landedTimer || 0) + dt;
         // Snow on rocks lasts essentially forever (45s), ground/branches fade after 10s
         const meltDelay = (p.type === 'snow' && p.hitRock) ? 45 : 10;
@@ -1531,28 +1541,6 @@
       }
       ctx.restore();
     }
-    for(const gl of giantLeaves){
-      ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
-      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
-      ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
-      ctx.scale(gl.scale/100, gl.scale/100); 
-      ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 35); 
-      ctx.quadraticCurveTo(15, 10, 35, 15); 
-      ctx.quadraticCurveTo(20, -5, 45, -20); 
-      ctx.quadraticCurveTo(15, -15, 0, -55); 
-      ctx.quadraticCurveTo(-15, -15, -45, -20); 
-      ctx.quadraticCurveTo(-20, -5, -35, 15); 
-      ctx.quadraticCurveTo(-15, 10, 0, 35); 
-      ctx.fill(); ctx.stroke();
-      ctx.shadowColor = 'transparent';
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
-      ctx.restore();
-    }
   }
 
   function draw(now){
@@ -1637,6 +1625,28 @@
         ctx.restore();
       }
       // === END WEATHER RENDERING ===
+      for(const gl of giantLeaves){
+      ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
+      ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
+      ctx.scale(gl.scale/100, gl.scale/100); 
+      ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 35); 
+      ctx.quadraticCurveTo(15, 10, 35, 15); 
+      ctx.quadraticCurveTo(20, -5, 45, -20); 
+      ctx.quadraticCurveTo(15, -15, 0, -55); 
+      ctx.quadraticCurveTo(-15, -15, -45, -20); 
+      ctx.quadraticCurveTo(-20, -5, -35, 15); 
+      ctx.quadraticCurveTo(-15, 10, 0, 35); 
+      ctx.fill(); ctx.stroke();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+      ctx.restore();
+    }
       // Draw HUD absolutely last so weather never blocks hearts/tools
       drawHudInCanvas();
       
