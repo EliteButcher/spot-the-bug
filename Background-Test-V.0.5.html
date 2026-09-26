@@ -2039,10 +2039,10 @@ function rollOvergrowth(season = 'summer'){
       t: gameNow, life: 1200, scale: isCrit || isMega ? 1.4 : 1.0
     });
     
-    transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
+   transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
   }
   function hitWrong(b){
-    lives--; 
+    lives--;
     sfxSafe(()=>sfx.splat());
     if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
     
