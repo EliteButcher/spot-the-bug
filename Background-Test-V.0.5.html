@@ -524,17 +524,17 @@ function rollOvergrowth(season = 'summer'){
           let gDensity = 300, gLength = 0.8, gFlex = 0.03; 
 
           if (season === 'winter') { 
-            gHue = 45; gSat = 25; gLum = 50; 
-            gBaseAlpha = 0.7; gGhostAlpha = 0.3;
-            gDensity = 150; gLength = 0.4; gFlex = 0.01; 
+            gHue = 45; gSat = 25; gLum = 50;             //Adjusts the colors. gHue = Base Color. gSat = Vibrancy (up is vivid). gLum = Light (up is brighter)
+            gBaseAlpha = 0.7; gGhostAlpha = 0.3;        // gBaseAlpha = solidness of grass-0-1( up is opaque and heavy). gGhostAlpha = Down Fades grass out
+            gDensity = 250; gLength = 0.55; gFlex = 0.03; //gDenisty = More Gras(up means more.) //gLength = Height multiplier(up is taller) gFlex = Bend (higher is more bendy)
           } else if (season === 'spring') { 
             gHue = 110; gSat = 75; gLum = 35; 
             gBaseAlpha = 0.85; gGhostAlpha = 0.15; 
-            gDensity = 450; gLength = 1.1; gFlex = 0.08; 
+            gDensity = 450; gLength = 1.0; gFlex = 0.055; 
           } else if (season === 'fall') { 
             gHue = 35; gSat = 65; gLum = 30; 
             gBaseAlpha = 0.9; gGhostAlpha = 0.35;
-            gDensity = 250; gLength = 0.7; gFlex = 0.04; 
+            gDensity = 300; gLength = 0.7; gFlex = 0.045; 
           }
 
           let blades = [];
