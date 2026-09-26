@@ -1795,7 +1795,7 @@ function rollOvergrowth(season = 'summer'){
         ctx.fillStyle = ft.color;
         ctx.fillText(ft.text, 0, 0);
         ctx.restore();
-      }();}
+      }
       if (now < hitStopUntil) {
         ctx.save();
         ctx.globalAlpha = (hitStopUntil - now) / 150;
