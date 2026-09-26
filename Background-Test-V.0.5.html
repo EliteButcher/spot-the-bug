@@ -2042,10 +2042,9 @@ function rollOvergrowth(season = 'summer'){
    transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
   }
   function hitWrong(b){
-    lives--;
+    lives--; 
     sfxSafe(()=>sfx.splat());
-    if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
-    
+    if(navigator.vibrate) navigator.vibrate([80, 40, 80]);    
     // The Shatter Effect (Loss Aversion)
     if (streak >= 3) {
       floatingTexts.push({
