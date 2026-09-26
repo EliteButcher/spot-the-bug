@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>⚠ TEST FILE — Background Test V0.1 (NOT A RELEASE)</title>
+<style>
+  :root{
+    --bg:#0a0e12; --panel:#101820; --ink:#c9e4d8; --dim:#5d7a6e;
+    --accent:#39d98a; --warn:#ffb347; --bad:#ff5d6c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  html,body{height:100%; width:100%; position:fixed; inset:0; overflow:hidden; overscroll-behavior:none; touch-action:none}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Courier New",Courier,monospace;
+    display:flex; align-items:center; justify-content:center;
+    user-select:none;
+  }
+  #frame{
+    width:100vw; height:100dvh;
+    background:var(--panel); border:2px solid #1d2b26; border-radius:10px;
+    display:flex; flex-direction:column; overflow:hidden; position:relative;
+  }
+  #frame::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  header{
+    padding:8px 14px; border-bottom:1px solid #1d2b26;
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:13px; letter-spacing:1px;
+  }
+  header .title{color:var(--accent); font-weight:bold}
+  #hud{display:flex; gap:14px; color:var(--dim); font-size:12px}
+  #hud b{color:var(--ink)}
+  #status{
+    padding:6px 14px 4px; border-bottom:1px solid #1d2b26;
+    display:flex; align-items:center; gap:12px;
+  }
+  #hearts{font-size:18px; letter-spacing:3px; color:var(--bad); min-width:74px}
+  #hearts.empty{color:#3a2b30}
+  #barwrap{flex:1; height:10px; background:#0a1210; border:1px solid #1d2b26; border-radius:3px; overflow:hidden}
+  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear}
+  #crumbs{font-size:12px; color:var(--warn); min-width:88px; text-align:right}
+  #tools{
+    padding:6px 14px; border-bottom:1px solid #1d2b26;
+    display:flex; gap:10px; align-items:center;
+  }
+  .tool{
+    background:#0b1412; border:1px solid #1d3a2c; color:var(--ink);
+    font-family:inherit; font-size:11px; letter-spacing:1px;
+    padding:7px 12px; border-radius:4px; cursor:pointer;
+  }
+  #fabs{pointer-events:none; position:absolute; top:50%; left:10px; transform:translateY(-50%); z-index:5; display:flex; flex-direction:column; gap:12px}
+  .fab{
+    pointer-events:auto;
+    width:76px; height:76px; border-radius:50%;
+    border:2px solid #24382e; background:rgba(11,20,18,.88); color:var(--ink);
+    font-family:inherit; font-size:11px; letter-spacing:1px; line-height:1.3;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    box-shadow:0 4px 14px rgba(0,0,0,.5);
+    touch-action:manipulation;
+  }
+  .fab .ico{font-size:22px}
+  .fab b{color:var(--accent); font-size:14px}
+  .fab:disabled{opacity:.3; cursor:default}
+  .fab:not(:disabled):active{transform:scale(.93)}
+  #t-scan{border-color:#ff5d6c}
+  #t-freeze{border-color:#4dc3ff}
+  #t-ernie{display:none; border-color:#ffd27a; background:rgba(20,16,8,.9)}
+  #t-ernie img{width:34px; height:34px; border-radius:50%; border:2px solid #ffd27a; object-fit:cover}
+  #t-ernie b{color:#ffd27a; font-size:11px}
+  .tool b{color:var(--accent)}
+  .tool:disabled{opacity:.35; cursor:default}
+  .tool:not(:disabled):hover{border-color:var(--accent)}
+  #tooltipline{margin-left:auto; font-size:10px; color:var(--dim)}
+  #stage{flex:1; position:relative; min-height:120px}
+  canvas{width:100%; height:100%; display:block; cursor:crosshair}
+  #banner{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+    padding:22px 18px; gap:8px; z-index:5; overflow-y:auto;
+    background:
+      radial-gradient(ellipse at 50% 18%, rgba(255,255,255,.14), transparent 42%),
+      radial-gradient(ellipse at 80% 90%, rgba(60,60,60,.3), transparent 50%),
+      linear-gradient(165deg, #161616 0%, #0c0c0c 45%, #060606 100%);
+    overflow:hidden;
+  }
+  #banner::before{
+    content:""; position:absolute; inset:14px; pointer-events:none;
+    border:2px solid rgba(255,255,255,.6);
+    box-shadow: inset 0 0 0 6px rgba(0,0,0,.65), 0 0 40px rgba(255,255,255,.08);
+    border-radius:4px;
+  }
+  #banner::after{
+    content:""; position:absolute; inset:20px; pointer-events:none;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:2px;
+  }
+  #banner.hide{display:none}
+  #banner .warnrow{z-index:1; font-size:22px; letter-spacing:14px; margin-bottom:-4px; filter:grayscale(1)}
+  #banner .crest{
+    width:92px; height:92px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #b9b9b9 42%, #3c3c3c 78%);
+    box-shadow: 0 8px 24px rgba(0,0,0,.55), inset 0 -8px 16px rgba(80,40,0,.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:42px; z-index:1; margin-bottom:4px;
+  }
+  #banner h1{
+    font-family: Palatino, "Palatino Linotype", "Times New Roman", serif;
+    font-size:clamp(28px,7vw,48px); letter-spacing:6px; z-index:1;
+    color:#f2f2f2; background:none; -webkit-background-clip:initial; background-clip:initial;
+    text-shadow:none;
+    font-weight:700;
+  }
+  #banner h2{font-size:15px; color:#dcdcdc; letter-spacing:4px; z-index:1; font-family:Palatino,serif}
+  #banner p{color:#bdbdbd; font-size:13px; line-height:1.65; max-width:440px; z-index:1}
+  #banner .attempts{
+    z-index:1; color:#eeeeee; letter-spacing:2px; font-size:13px;
+    border:1px solid rgba(255,255,255,.45); padding:6px 14px; border-radius:999px;
+    background:rgba(0,0,0,.28);
+  }
+  #banner .row{display:flex; gap:10px; z-index:1; flex-wrap:wrap; justify-content:center}
+  #banner .go, #banner .skin{
+    margin-top:6px; border:none; cursor:pointer; z-index:1;
+    font-family:Palatino, "Times New Roman", serif; font-weight:bold;
+    letter-spacing:2px; padding:12px 28px; border-radius:3px;
+  }
+  #banner .go{
+    background: linear-gradient(#f0f0f0, #8a8a8a); color:#111;
+    box-shadow: 0 4px 0 #444, 0 8px 18px rgba(0,0,0,.4);
+    font-size:16px;
+    border:4px solid #ffffff;
+    outline:2px solid rgba(255,255,255,.35);
+  }
+  #banner .go:hover{filter:brightness(1.08)}
+  #banner .skin{
+    background:rgba(20,20,20,.7); color:#eeeeee;
+    border:1px solid rgba(255,255,255,.5); font-size:13px;
+  }
+  #banner .skin.on{background:linear-gradient(#f0f0f0,#8a8a8a); color:#111; border-color:transparent}
+  #banner small{z-index:1}
+  #tag{
+    position:absolute; top:46px; left:50%; transform:translateX(-50%);
+    max-width:92%; text-align:center;
+    font-size:12px; color:var(--warn); min-height:16px; letter-spacing:.5px;
+    padding:6px 14px; pointer-events:none;
+    background:rgba(10,14,18,.85); border-radius:4px; line-height:1.4;
+  }
+  #celebrate{
+    display:none; position:absolute; left:50%; top:38%; transform:translate(-50%,-50%);
+    z-index:6; pointer-events:none;
+    font-family: Palatino, "Times New Roman", serif;
+    font-size:clamp(22px,6vw,36px); letter-spacing:3px; font-weight:700;
+    color:#ffe9a8; text-shadow:0 2px 0 #6a4a08, 0 8px 18px rgba(0,0,0,.55);
+    background:rgba(10,14,18,.72); border:1px solid rgba(240,193,75,.55);
+    padding:10px 18px; border-radius:6px; white-space:nowrap;
+  }
+  @media (max-width:700px){
+    header{padding:8px;letter-spacing:0;font-size:11px} #hud{font-size:10px;gap:4px} footer{font-size:9px;padding:8px} #banner{padding:12px;gap:5px} #banner h1{font-size:26px}
+    #status{display:none}
+    #tooltipline{display:none}
+    #banner p{font-size:12px}
+    #banner .warnrow{font-size:16px;letter-spacing:8px;margin-bottom:0}
+    #banner .crest{width:56px;height:56px;font-size:26px}
+    #banner p{line-height:1.4;max-width:340px}
+    #banner .attempts{font-size:11px;padding:4px 10px}
+    #banner .go{margin-top:6px;padding:12px 22px;flex-shrink:0}
+    #banner small{display:none}
+    #btext{font-size:11px}
+    #btext br{display:none}
+  }
+  footer{
+    padding:8px 14px; border-top:1px solid #1d2b26; font-size:11px;
+    color:var(--dim); display:flex; justify-content:space-between;
+  }
+  #mute{background:none;border:none;color:var(--dim);cursor:pointer;font-family:inherit;font-size:11px}
+  .blink{animation:bl 1s steps(2) infinite}
+  @keyframes bl{50%{opacity:.2}}
+</style>
+</head>
+<body>
+<div id="frame">
+  <header>
+    <span class="title">SPOT THE BUG ⚠ TEST</span>
+    <span id="hud">ROUND <b id="r">1</b> · SCORE <b id="s">0</b> · HI <b id="hi">0</b></span>
+  </header>
+  <div id="status">
+    <span id="hearts">●●●●●</span>
+    <div id="barwrap"><div id="timebar"></div></div>
+    <span id="crumbs">DELIVERED 0</span>
+  </div>
+  <div id="tools">
+    <span id="tooltipline">catch bugs clean to earn tools · the golden one is rare</span>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="fabs">
+      <button class="fab" id="t-scan"><span class="ico">🔍</span><span>RADAR</span><b id="c-scan">1</b></button>
+      <button class="fab" id="t-freeze"><span class="ico">❄️</span><span>FREEZE</span><b id="c-freeze">0</b></button>
+      <button class="fab" id="t-ernie"><img src="https://public.ilands.ai/avatars/approved/agent/357657057643466752/b6526ea6-6ae7-4133-924b-41ff77fd261b.webp" alt="Ernie"><span>CATCH</span><b id="c-ernie">1</b></button>
+    </div>
+    <div id="tag"></div><div id="celebrate">EXTRA ATTEMPT!</div>
+    <div id="banner">
+      <div class="warnrow">⚠️ ⚠️ ⚠️</div>
+      <div class="crest">⚠️</div>
+      <h1 style="color:#f2f2f2">TEST FILE</h1>
+      <h2>BACKGROUND TEST V0.1 · NOT A RELEASE · NOT A GARDEN</h2>
+      <p style="color:#e6e6e6;font-size:12px;letter-spacing:1px">⚠ This is a background design test, not a playable hunt. It may be FPS-heavy and can change or vanish at any time. The real Colony (v2.5.6) lives on the Hub.</p>
+      <div class="attempts" id="attline">5 STARTING ATTEMPTS</div>
+      <small style="color:#bdbdbd">Tap anywhere for title music</small>
+      <p id="btext">This colony hauls crumbs from the sugar pile to the nest.<br>
+      Every worker you see is doing the job right.<br><br>
+      <span style="color:#ffffff">One of them isn't.</span> A saboteur works inside the herd:
+      it steals, stalls, stutters, or walks through walls.<br>
+      It looks like everyone else. It isn't.<br><br>
+      Tap the saboteur before the clock drains. Misses cost an attempt, not a life. Extra attempt every five rounds cleared.</p>
+      <button class="go" id="start">PROTECT THE COLONY</button>
+      <button class="skin" id="to-title" style="display:none">MAIN MENU</button>
+    </div>
+  </div>
+  <footer>
+    <span style="color:#e6e6e6">⚠ TEST FILE V0.1 · background test · may be fps heavy</span>
+    <button id="mute">SOUND ON</button>
+    <span class="blink" id="cursor">█</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const bgCanvas = document.createElement('canvas');
+  const bgCtx = bgCanvas.getContext('2d');
+  let cachedRoundTheme = -1;
+  
+  let gameNow=0, realLast=performance.now(), appAway=document.hidden, readUntil=0, tagUntil=0;
+  let transition=null, cine=null, captureFx=null, hitStopUntil=0;
+  let floatingTexts = [], overgrowth = [], giantLeaves = [], nextWindAt = 10000;
+  // === DYNAMIC WEATHER STATE ===
+  let weatherParticles = [], lightningFlash = 0, puddle = null; //Lightning and Puddle
+  let wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const tag = document.getElementById('tag'), banner = document.getElementById('banner');
+  const $r = document.getElementById('r'), $s = document.getElementById('s'), $hi = document.getElementById('hi');
+  const $hearts = document.getElementById('hearts'), $timebar = document.getElementById('timebar'), $crumbs = document.getElementById('crumbs');
+  const $cScan = document.getElementById('c-scan'), $cFrz = document.getElementById('c-freeze');
+  const btnScan = document.getElementById('t-scan'), btnFrz = document.getElementById('t-freeze');
+  let W=0,H=0;
+  function fit(){ const r = cv.parentElement.getBoundingClientRect(); if(r.width<10||r.height<10) return; const dpr=Math.min(devicePixelRatio||1,2); cv.width=W=r.width*dpr; cv.height=H=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  window.addEventListener('resize', fit);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(fit,60); });
+  document.addEventListener('touchmove', e=>{ e.preventDefault(); }, {passive:false});
+
+  let actx=null, muted=false, bgmTimer=null, bgmStep=0;
+  const MELODY = [523,0,659,0,784,659,0,587, 523,0,659,784,880,0,784,0, 659,0,587,0,523,0,392,0, 440,494,587,0,523,0,0,0]; 
+  const BASS   = [131,0,0,0,165,0,0,0, 175,0,0,0,196,0,0,0];
+  const MENU_MELODY = [392,0,523,0,659,0,784,0, 659,0,523,0,392,0,0,0, 440,0,587,0,880,0,784,0, 659,784,659,0,523,0,0,0];
+  const MENU_BASS   = [98,0,0,0, 131,0,0,0, 110,0,0,0, 165,0,131,0];
+  const CINE_MELODY=[262,392,523,659,784,0,659,784,1047,0,784,659,523,0,392,0];
+  let bgmMode='', master=null;
+  function audioWake(){
+    audioInit();
+    if(actx && !appAway && !muted) actx.resume().catch(()=>{});
+  }
+  function syncSound(){
+    if(!actx) return;
+    if(master) master.gain.setValueAtTime(muted||appAway?0:1,actx.currentTime);
+    if(appAway || muted) actx.suspend().catch(()=>{}); else audioWake();
+  }
+  function bgmPlay(mode){
+    audioWake();
+    if(bgmTimer){clearInterval(bgmTimer);bgmTimer=null;}
+    bgmMode=mode; bgmStep=0;
+    if(!mode) return;
+    bgmTimer=setInterval(()=>{
+      if(muted||appAway||!actx||actx.state!=='running') return;
+      const M=bgmMode==='menu'?MENU_MELODY:bgmMode==='cine'?CINE_MELODY:MELODY;
+      const B=bgmMode==='menu'?MENU_BASS:BASS;
+      tone(M[bgmStep%M.length],.15,bgmMode==='menu'?'triangle':'square',.03);
+      tone(B[bgmStep%B.length],.28,'triangle',.045); bgmStep++;
+    },mode==='menu'?190:mode==='cine'?125:170);
+  }
+  function bgmStart(){bgmPlay('game');}
+  function audioInit(){
+    if(actx) return;
+    try{ actx = new (window.AudioContext||window.webkitAudioContext)(); master=actx.createGain(); master.connect(actx.destination); }catch(e){ return; }
+  }
+  function tone(freq, dur, type='square', vol=0.05, when=0){
+    if(!actx || muted || appAway || !freq) return;
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.value=freq;
+    const t=actx.currentTime+when;
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+  function bgmStop(){ bgmPlay(''); }
+  function sfxSafe(fn){ try{ fn(); }catch(e){ noteErr(e); } }
+  const sfx = {
+    catch(){ [659,784,988,1319].forEach((f,i)=>tone(f,0.09,'square',0.06,i*0.06)); },
+    wind(){
+      if(!actx) return;
+      const bufferSize = actx.sampleRate * 4; 
+      const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = actx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = actx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(150, actx.currentTime);
+      filter.frequency.exponentialRampToValueAtTime(1000, actx.currentTime + 1.5);
+      filter.frequency.exponentialRampToValueAtTime(100, actx.currentTime + 4);
+      
+      const gain = actx.createGain();
+      gain.gain.setValueAtTime(0, actx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.12, actx.currentTime + 1.5);
+      gain.gain.linearRampToValueAtTime(0, actx.currentTime + 4);
+      
+      noise.connect(filter); filter.connect(gain); gain.connect(master);
+      noise.start(actx.currentTime); noise.stop(actx.currentTime + 4);
+    },
+    wrong(){ tone(220,0.2,'sawtooth',0.07); tone(110,0.3,'sawtooth',0.07,0.12); },
+    timeout(){ [440,392,330,262].forEach((f,i)=>tone(f,0.12,'square',0.05,i*0.1)); },
+    tick(){ tone(1200,0.03,'square',0.03); },
+    tool(){ tone(880,0.08,'triangle',0.06); tone(1175,0.1,'triangle',0.06,0.08); },
+    gameover(){ [392,330,262,196].forEach((f,i)=>tone(f,0.22,'triangle',0.07,i*0.18)); },
+    extralife(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.12,'triangle',0.07,i*0.09)); },
+    step(){ tone(1500+Math.random()*200,0.02,'square',0.012); },
+    splat(){ tone(90,0.06,'square',0.09); tone(55,0.22,'sawtooth',0.1,0.04); tone(140,0.05,'square',0.05,0.02); },
+    thunder(isCloseStrike){
+      if(!actx) return;
+      const duration = isCloseStrike ? 4 : 3; 
+      const bufferSize = actx.sampleRate * duration;
+      const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = actx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = actx.createBiquadFilter();
+      filter.type = 'lowpass';
+      // Boosted starting frequencies so the crack cuts through the game music
+      filter.frequency.setValueAtTime(isCloseStrike ? 1000 : 400, actx.currentTime); 
+      filter.frequency.exponentialRampToValueAtTime(isCloseStrike ? 30 : 50, actx.currentTime + duration);
+      
+      const gain = actx.createGain();
+      gain.gain.setValueAtTime(0, actx.currentTime);
+      // Massively boosted gain (1.8 instead of 0.45) to account for the muffled filter
+      gain.gain.linearRampToValueAtTime(isCloseStrike ? 1.8 : 0.8, actx.currentTime + (isCloseStrike ? 0.05 : 0.2)); 
+      gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + duration); 
+      
+      noise.connect(filter); filter.connect(gain); gain.connect(master);
+      noise.start(actx.currentTime); noise.stop(actx.currentTime + duration); 
+    },
+  };
+  document.getElementById('mute').addEventListener('click', e=>{
+    muted=!muted; e.target.textContent = muted?'SOUND OFF':'SOUND ON'; audioWake(); syncSound(); if(!muted && state==='menu') bgmPlay('menu');
+  });
+
+  const anomalies = [
+    { id:'steal', name:'steals, never delivers', hint:'One worker takes crumbs but never drops them off. Watch who never delivers.', tag:'The saboteur hoards. It hauls and hauls and the nest gets nothing.' },
+    { id:'idle',  name:'stalls at the sugar',    hint:'One worker reached the sugar and never picked up. It just wanders the pile.', tag:'It got to the sugar and stopped. Pickup call failed.' },
+    { id:'fast',  name:'twice the speed',        hint:'One worker moves twice as fast as the colony. Nobody else is in a hurry.', tag:'Speed 2x. Someone multiplied instead of added. Frame data never lies.' },
+    { id:'slow',  name:'half the speed',         hint:'One worker crawls at half speed. Too slow to finish a route.', tag:'Half speed. The kind of bug you only feel, never see.' },
+    { id:'lag',   name:'one frame behind',       hint:'One worker stutters every other beat. Its position updates late.', tag:'Its position is one update stale. Classic.' },
+    { id:'phase', name:'desynced from the rhythm', hint:'One worker freezes in bursts while the colony flows around it.', tag:'Every 400th frame, physics forgets this one exists.' },
+    { id:'ghost', name:'clips through the wall', hint:'One worker leaves the arena and comes back the other side. No collision.', tag:'Collision layer mismatch. It went right through.' },
+    { id:'spin',  name:'spins while it walks',   hint:'One worker spins in place as it walks. Sign error in the angle.', tag:'Sign error. Angle subtracted instead of added.' },
+  ];
+
+  let state='menu';
+  let round=1, score=0, lives=5, streak=0, scorePopAt=0;
+  let lifeFx = null; 
+  function firstTouch(){ audioWake(); if(state==='menu' && bgmMode!=='menu') bgmPlay('menu'); }
+  document.addEventListener('pointerdown',firstTouch);
+  document.addEventListener('keydown',firstTouch);
+  function setAway(away){
+    appAway=away; realLast=performance.now(); syncSound();
+    if(!away) fit();
+  }
+  document.addEventListener('visibilitychange',()=>setAway(document.hidden));
+  window.addEventListener('blur',()=>setAway(true));
+  window.addEventListener('focus',()=>setAway(document.hidden));
+  window.addEventListener('pagehide',()=>setAway(true));
+  window.addEventListener('pageshow',()=>setAway(document.hidden));
+  let hi = 0; try{ hi = parseInt(localStorage.getItem('stb_high')||'0',10)||0; }catch(e){}
+  $hi.textContent = hi;
+  let bugs=[], bugBug=null, anom=null, roundStart=0, roundLen=0, last=0;
+  let delivered=0, scanUntil=0, freezeUntil=0, lastTick=10;
+  let charges={ scan:1, freeze:0, ernie:0 };
+  const MAXC = 2;
+  let trail=[], lastTrailAt=0;
+  let heists=[], heistT=3;
+  let splats=[];
+  let keepGarden=false; 
+
+  function nPerRound(){ return Math.min(5 + round*2, 24); }
+  function speed(){ return 26 + round*5; }
+  function roundSeconds(){ return Math.max(26 - Math.floor(round/2), 14); }
+
+  function spawn(){
+    bugs=[]; delivered=0; obstacleCache=null;
+    const pool = round===1 ? ['idle'] : round===2 ? ['idle','steal','fast'] : anomalies.map(a=>a.id);
+    const pi = Math.min(Math.floor(Math.random()*pool.length), pool.length-1);
+    anom = anomalies.find(a=>a.id===pool[pi]) || anomalies[0];
+    const n = nPerRound();
+    const playTop = 60;
+    const cols = Math.ceil(Math.sqrt(n*1.4)), rows = Math.ceil(n/cols);
+    const cw = (cv.clientWidth*0.9)/cols, ch = ((cv.clientHeight-playTop-70)*0.8)/rows;
+    const Wv = cv.clientWidth, Hv = cv.clientHeight;
+    const fabZone = (x,y)=> x < 118 && y > Hv/2-125 && y < Hv/2+125;
+    
+    if(!keepGarden || !pebbles.length){
+      nestX = 90 + Math.random()*(Wv-180);
+      sugarX = 90 + Math.random()*(Wv-180);
+      nestY = 92; sugarY = Hv-52;
+      rollPebbles();
+      rollOvergrowth();
+    }
+    keepGarden=false;
+    trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
+    scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
+    weatherParticles=[]; lightningFlash=0; // Wipes the old weather instantly
+    
+    const ti = (round - 1) % themes.length;
+    if (ti === 1 || ti === 2) { // Rain or Storm
+      let px, py, pr, valid = false, tries = 0;
+      
+      while (!valid && tries < 40) {
+        pr = 90 + Math.random() * 60; // Max radius
+        px = 100 + Math.random() * (Wv - 200);
+        py = 150 + Math.random() * (Hv - 300);
+        valid = true;        
+        // Check Rocks so puddle edge cannot touch the rock edge at all
+        for (const pb of pebbles) {
+          if (Math.hypot(px - pb.x, py - pb.y) < pb.r + pr + 15) { valid = false; break; }
+        }        
+        // Check Grass: 20% overlap at max growth (distance must be > grass radius + 80% of puddle radius)
+        if (valid) {
+          for (const f of overgrowth) {
+            if (f.type === 'grass' && Math.hypot(px - f.x, py - f.y) < f.r + pr * 0.8) { 
+              valid = false; break; 
+            }
+          }
+        }
+        tries++;
+      }      
+      // Only create the puddle if a safe spot was actually found
+      if (valid) {
+        puddle = { x: px, y: py, r: 0, maxR: pr, growth: ti === 2 ? 3 : 1.5 };
+      } else {
+        puddle = null;
+      }      
+    } else {
+      puddle = null;
+    }
+    
+    for(let i=0;i<n;i++){
+      const c=i%cols, r0=Math.floor(i/cols);
+      const toNest = Math.random()<0.5;
+      let bx = 30 + c*cw + Math.random()*cw*0.4 + cw*0.2;
+      let by = playTop + 20 + r0*ch + Math.random()*ch*0.5 + ch*0.2;
+      let guard=0;
+      while(guard++<24 && (fabZone(bx,by) || pebbles.some(p=>Math.hypot(bx-p.x,by-p.y)<p.r+16))){
+        bx = Math.max(128, Math.min(Wv-30, 128 + Math.random()*Math.max(1,Wv-158)));
+        by = playTop + 20 + Math.random()*Math.max(40,Hv-playTop-90);
+      }
+      bugs.push({
+        x: bx, y: by,
+        ang: Math.random()*Math.PI*2, t: Math.random()*10,
+        w: 16+Math.random()*4, hue: 30 + Math.random()*15, 
+        carrying: toNest, phase: toNest?'toNest':'toSugar',
+        flipT: 0
+      });
+    }
+    bugBug = bugs[Math.floor(Math.random()*bugs.length)];
+    bugBug.hue = bugs[0].hue;
+    if(anom.id==='idle'){bugBug.x=sugarX;bugBug.y=sugarY-26;bugBug.carrying=false;bugBug.phase='toSugar';}
+    roundLen = roundSeconds()*1000; roundStart = gameNow;
+  }
+  let W0=800, nestX=400, sugarX=400, nestY=128, sugarY=0;
+  let pebbles=[];
+  function rollPebbles(){
+    pebbles=[];
+    for(let i=0;i<2;i++){
+      for(let tries=0;tries<40;tries++){
+        const r=20+Math.random()*12;
+        const x=70+r+Math.random()*(cv.clientWidth-140-2*r);
+        const y=140+r+Math.random()*(cv.clientHeight-240-2*r);
+        const ok = Math.hypot(x-nestX,y-nestY)>90 && Math.hypot(x-sugarX,y-sugarY)>90
+          && pebbles.every(p=>Math.hypot(x-p.x,y-p.y)>p.r+r+50);
+        if(ok){ pebbles.push({x,y,r}); break; }
+      }
+    }
+  }
+
+  function rollOvergrowth(){
+    overgrowth=[]; giantLeaves=[];
+    const Wv = cv.clientWidth, Hv = cv.clientHeight;
+    const numGrass = 2 + Math.floor(Math.random()*2);
+    for(let i=0; i<numGrass; i++){
+      for(let tries=0; tries<40; tries++){
+        const r = 40 + Math.random()*20; 
+        const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
+        const y = 90 + r + Math.random()*(Hv - 180 - 2*r);
+        
+        const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
+        if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
+          let blades = [];
+          const spineAngle = Math.random() * Math.PI * 2;
+          const spineLen = r * (3.0 + Math.random() * 2); 
+          const spineCurve = (Math.random() - 0.5) * r * 3.5; 
+          const numBlades = Math.floor(350 + Math.random() * 150); 
+          
+          for(let k=0; k<numBlades; k++){ 
+            const t = (Math.random() + Math.random()) / 2; 
+            const sx = (t - 0.5) * spineLen;
+            const sy = Math.sin(t * Math.PI) * spineCurve;
+            const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
+            const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
+            const ang = Math.random() * Math.PI * 2;
+            const lx = sx + Math.cos(ang) * scatter;
+            const ly = sy + Math.sin(ang) * scatter;
+            const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
+            const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);
+            if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
+            if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
+
+            blades.push({
+              ox: ox, oy: oy,
+              an: -Math.PI/2 + (Math.random()-0.5)*0.8,
+              len: r * (0.3 + Math.random()*0.8),
+              hue: 65 + Math.random()*40,
+              lum: 20 + Math.random()*30,
+              sway: Math.random()*Math.PI*2
+            });
+          }
+          overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
+          break;
+        }
+      }
+    }
+    for(let tries=0; tries<40; tries++){
+      const x = 100 + Math.random()*(Wv - 200);
+      const y = 150 + Math.random()*(Hv - 300);
+      const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + 40);
+      if(Math.hypot(x-nestX, y-nestY) > 110 && Math.hypot(x-sugarX, y-sugarY) > 110 && clearOfPebbles){
+        const len = 160 + Math.random()*60;
+        const ang = (Math.random()-0.5)*Math.PI;
+        const curveY = (Math.random()-0.5)*40;
+        let subBranches = [];
+        let contactPoints = []; 
+        contactPoints.push({ lx: -len/2, ly: 0, r: 12 });
+        contactPoints.push({ lx: len/2, ly: 0, r: 12 });
+        const numBranches = 3 + Math.floor(Math.random()*4);
+        for(let b=0; b<numBranches; b++) {
+           let rootX = (Math.random() - 0.5) * len * 0.8;
+           let p = (rootX - (-len/2)) / len; 
+           let rootY = 4 * p * (1-p) * curveY; 
+           let sb = {
+              lx: rootX, ly: rootY,
+              ang: (Math.random() > 0.5 ? 1 : -1) * (0.2 + Math.random()*0.8),
+              len: 30 + Math.random()*50,
+              curve: (Math.random()-0.5)*30
+           };
+           subBranches.push(sb);
+           if(Math.random() > 0.5) {
+               contactPoints.push({
+                   lx: sb.lx + Math.cos(sb.ang)*sb.len,
+                   ly: sb.ly + Math.sin(sb.ang)*sb.len,
+                   r: 8
+               });
+           }
+        }
+        let bark = [];
+        let knots = [];
+        for (let j = -len/2 + 10; j < len/2 - 10; j += 15) {
+            let p = (j - (-len/2)) / len;
+            let yBase = 4 * p * (1-p) * curveY;
+            bark.push({
+                x1: j, y1: yBase - 3 + Math.random()*2,
+                x2: j + 10 + Math.random()*15, y2: yBase - 3 + (Math.random()-0.5)*4
+            });
+            if(Math.random() > 0.7) {
+                knots.push({ x: j, y: yBase + (Math.random() > 0.5 ? 4 : -4) });
+            }
+        }
+        overgrowth.push({ type: 'branch', x, y, ang, len, curveY, subBranches, contactPoints, bark, knots });
+        break;
+      }
+    }
+  }
+
+  function targetFor(b){
+    const Wv=cv.clientWidth, Hv=cv.clientHeight;
+    return b.phase==='toNest' ? {x:nestX, y:nestY} : {x:sugarX, y:sugarY};
+  }
+  function arriveRadius(){ return 18; }
+
+  function update(dt, now){
+    if (now < hitStopUntil) return;
+    const frozen = now < freezeUntil;
+    if(frozen) return;
+    obstacleCache=null; obstacleCache=obstacles();
+    const t = (now-roundStart)/1000;
+    const Wv = cv.clientWidth, Hv = cv.clientHeight;
+    if(!frozen && t>3 && t<3.05 && Math.floor(t*20)%2===0 && lastTick!==Math.floor(t)){}; 
+    if (puddle && !frozen) puddle.r = Math.min(puddle.maxR, puddle.r + dt * puddle.growth);
+    const sp = speed();
+    for(const b of bugs){
+      if(b.squished) continue; 
+      // === ANIMATE WATER DROPLETS ON BACK ===
+      if (b.drops) {
+        for (let j = b.drops.length - 1; j >= 0; j--) {
+          b.drops[j].t += dt * b.drops[j].speed;
+          if (b.drops[j].t > 1) b.drops.splice(j, 1); // Delete when it hits the tail
+        }
+      }
+      const isB = (b===bugBug);
+      let f = 1;
+          if(!frozen){
+            if(isB && anom.id==='fast') f = 2.7 - Math.min(round*0.08, 0.5);   
+            if(isB && anom.id==='slow') f = 0.4 + Math.min(round*0.02, 0.1);              
+            // Puddle slow-down tiers based on depth
+            if (puddle) {
+              const pd = Math.hypot(b.x - puddle.x, b.y - puddle.y);
+              if (pd < puddle.r) {
+                let depthRatio = pd / (puddle.r || 1);
+                if (depthRatio < 0.33) f *= 0.75; // Center: -25% speed
+                else if (depthRatio < 0.66) f *= 0.82; // Middle: -18% speed
+                else f *= 0.90; // Edge: -10% speed
+              }
+            }            
+            b.t += dt*f;
+        let tg = targetFor(b);
+        if(now<(b.startledUntil||0)) continue;
+        if(isB && anom.id==='steal' && heistT>0 && heistT<2.2){
+          let vic=null, vd=1e9;
+          for(const o of bugs){ if(o!==b && o.carrying && !o.squished){ const d=dist(b,o); if(d<vd){vd=d;vic=o;} } }
+          if(vic){
+            if(vd<20){
+              vic.carrying=false; vic.phase='toSugar'; b.cargo=(b.cargo||(b.carrying?1:0))+1; b.carrying=true; b.cargo=Math.max(1,b.cargo||0); b.phase='toNest';
+              b.steals=(b.steals||0)+1;
+              vic._startled=now; vic.startledUntil=now+650; 
+              heists.push({x:(b.x+vic.x)/2, y:(b.y+vic.y)/2, t:now});
+              sfxSafe(()=>sfx.wrong()); 
+              heistT = 3.5+Math.random()*3; 
+              b._boost=false;
+            } else {
+              tg.x=vic.x; tg.y=vic.y; b._boost=true; 
+            }
+          } else b._boost=false;
+        } else if(isB) b._boost=false;
+        if(isB && anom.id==='idle'){
+          b.x += Math.cos(b.t*3)*24*dt; b.y += Math.sin(b.t*2.2)*18*dt;
+          b.ang = b.t*0.7;
+          clampSoft(b, Wv, Hv);
+          continue;
+        }
+        if(isB && anom.id==='steal'){
+          if(b.phase==='toNest'){
+            if(dist(b,targetFor(b)) < arriveRadius()+6){ b.phase='toSugar'; b.flipT++; }
+          } else if(dist(b,targetFor(b)) < arriveRadius()+6){ b.phase='toNest'; b.carrying=true;b.cargo=Math.max(1,b.cargo||0); }
+        } else {
+          if(b.phase==='toNest' && dist(b,tg) < arriveRadius()){
+            b.carrying=false; b.cargo=0; delivered += isB?0:1; b.phase='toSugar';
+            if(!isB && Math.random()<0.4) sfxSafe(()=>sfx.step());
+          } else if(b.phase==='toSugar' && dist(b,tg) < arriveRadius()){
+            b.carrying=true; b.cargo=Math.max(1,b.cargo||0); b.phase='toNest';
+          }
+        }
+        if(!b._boost) tg=targetFor(b);
+        let px=b.x, py=b.y;
+        let weight = 1/(1+0.22*Math.max(0,(b.cargo||0)-1));
+        const wob = Math.sin(b.t*4 + (isB?1.7:0))*0.5;
+        let moveAng = (isB && anom.id==='ghost' ? 0 : steerAround(b,tg,sp*f*weight*dt)) + wob*(isB?0.15:0.4); 
+        let da = moveAng - b.ang;
+        while(da>Math.PI) da-=Math.PI*2; while(da<-Math.PI) da+=Math.PI*2;
+        b.ang += da*Math.min(1, dt*7);
+        b.x += Math.cos(moveAng)*sp*f*weight*(b._boost?1.7:1)*dt;
+        b.y += Math.sin(moveAng)*sp*f*weight*(b._boost?1.7:1)*dt;
+        if(isB && anom.id==='ghost'){
+          if(b.x<-10) b.x=Wv+8; if(b.x>Wv+10) b.x=-8; if(b.y<-10) b.y=Hv+8; if(b.y>Hv+10) b.y=-8;
+        } else {
+          clampSoft(b, Wv, Hv);
+        }
+        if(isB && anom.id==='lag'){ if(Math.floor(t*30)%7<4){ b.x=px; b.y=py; b._frozen=true; } } 
+        if(isB && anom.id==='phase'){ if(Math.floor(t*10)%9<3){ b.x=px; b.y=py; b._frozen=true; } } 
+        if(isB && anom.id==='spin'){ b.ang += dt*4; }
+      }
+    }
+    
+    for(let i=0;i<bugs.length;i++){
+      const a=bugs[i]; if(a.squished) continue;
+      for(let j=i+1;j<bugs.length;j++){
+        const c=bugs[j]; if(c.squished) continue;
+        const dx=c.x-a.x, dy=c.y-a.y, d=Math.hypot(dx,dy), min=19;
+        if(d>0.01 && d<min){
+          const push=(min-d)/2, nx=dx/d, ny=dy/d;
+          if(!a._frozen && !(a===bugBug&&anom.id==='ghost')){ a.x-=nx*push; a.y-=ny*push; }
+          if(!c._frozen && !(c===bugBug&&anom.id==='ghost')){ c.x+=nx*push; c.y+=ny*push; }
+        }
+      }
+    }
+    for(const b of bugs) b._frozen=false;
+    for(const b of bugs){if(!b.squished && !(b===bugBug && anom.id==='ghost')){resolveTerrain(b);clampSoft(b,Wv,Hv);}}
+    
+    const prev=trail[trail.length-1];
+    if(!prev || (now-lastTrailAt>45 && dist(bugBug,prev)>5)){
+      lastTrailAt=now; trail.push({x:bugBug.x,y:bugBug.y,t:now,ang:bugBug.ang});
+    }
+    trail=trail.filter(p=>now-p.t<=1200).slice(-48);
+    if(anom.id!=='idle'){ heistT-=dt; if(heistT<=-0.05) heistT=3+Math.random()*3; }
+
+    if(!frozen && now > nextWindAt) {
+      wind.active = true;
+      wind.targetVx = (Math.random() > 0.5 ? 1 : -1) * (18 + Math.random() * 10); 
+      wind.leafDropped = false;
+      wind.intensity = 0;
+      wind.killTimer = 0;
+      wind.pattern = Math.floor(Math.random() * 3);
+      nextWindAt = now + 25000 + Math.random() * 15000; 
+      sfxSafe(()=>sfx.wind());
+    }
+
+    if(wind.active) {
+      if (!wind.leafDropped || giantLeaves.length > 0) {
+          wind.intensity = Math.min(1, wind.intensity + dt * 0.8); 
+      } else {
+          if (!wind.killTimer) wind.killTimer = now + 500;
+          if (now > wind.killTimer) wind.active = false;
+      }
+
+      if(!frozen) {
+        wind.vx = wind.targetVx * wind.intensity;
+        for(const b of bugs) {
+            if(!b.squished) {
+                b.x += wind.vx * wind.intensity * dt * 1.5; 
+                b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5; 
+            }
+        }
+        
+        if(!wind.leafDropped && wind.intensity > 0.7) {
+          wind.leafDropped = true;
+          giantLeaves.push({
+            x: wind.vx > 0 ? -300 : Wv + 300,
+            y: Hv * 0.3 + (Math.random()-0.5)*100,
+            startY: Hv * 0.3 + (Math.random()-0.5)*100,
+            t: 0, 
+            duration: 4000 + Math.random()*2000, 
+            vx: wind.vx * 30, 
+            scale: Math.min(Wv, Hv) * 0.85,
+            hue: 15 + Math.random()*25,
+            rot: (Math.random()-0.5) * 4
+          });
+        }
+      }
+    } else {
+      const inten = Number(wind.intensity)||0;
+      const tvx = Number(wind.targetVx)||0;
+      wind.intensity = Math.max(0, inten - dt * 0.5);
+      wind.vx = tvx * wind.intensity;
+    }
+
+    for(let i = giantLeaves.length-1; i >= 0; i--){
+      let gl = giantLeaves[i];
+      if(!frozen) gl.t += dt; 
+      
+      const progress = gl.t / (gl.duration / 1000);
+      const dir = Math.sign(wind.targetVx);
+      const startX = dir > 0 ? -400 : Wv + 400;
+      const endX = dir > 0 ? Wv + 600 : -600;
+      
+      const linearX = startX + (endX - startX) * progress;
+      
+      if (wind.pattern === 0) { 
+          gl.x = linearX;
+          gl.y = gl.startY + Math.sin(progress * Math.PI * 2) * 150;
+          gl.ang = Math.sin(progress * Math.PI * 2) * 1.2 + gl.rot * dt;
+      } else if (wind.pattern === 1) { 
+          gl.x = linearX;
+          gl.y = gl.startY + Math.sin(progress * Math.PI) * 300;
+          gl.ang = Math.sin(progress * Math.PI * 1.5) * 1.5 + gl.rot * dt;
+      } else { 
+          gl.x = linearX - Math.sin(progress * Math.PI * 4) * 90 * dir;
+          gl.y = gl.startY - Math.cos(progress * Math.PI * 4) * 200 + 200; 
+          gl.ang = progress * Math.PI * 4 * dir;
+      }
+      
+      if(progress >= 1.2 || (wind.targetVx > 0 ? gl.x > Wv + 400 : gl.x < -400)) {
+          giantLeaves.splice(i, 1);
+      }
+    }
+    // === WEATHER GENERATION & PHYSICS ===
+  const themeIndex = (round - 1) % themes.length;
+  let weather = 'clear';
+  if (themeIndex === 0) weather = 'snow';
+  else if (themeIndex === 1) weather = 'rain';
+  else if (themeIndex === 2) weather = 'storm';
+  else if (themeIndex === 3) weather = 'fog';
+  else if (themeIndex === 4) weather = 'autumn';
+
+  if (!frozen) {
+    let spawnRate = 0;
+    if (weather === 'snow') spawnRate = 0.4;         // Moderate, steady snow
+    else if (weather === 'rain') spawnRate = 0.8;    // Fast drops
+    else if (weather === 'storm') spawnRate = 1.5;   // Heavy downpour
+    else if (weather === 'fog') spawnRate = 0.03;    // Rare, massive clouds
+    else if (weather === 'autumn') spawnRate = 0.02; // Occasional leaves
+
+  // Thunderstorm Lightning Flashes
+  if (weather === 'storm' && Math.random() < 0.003) {
+    const isCloseStrike = Math.random() < 0.3;  
+   // 1. VISUAL: The light always reaches the player instantly
+    lightningFlash = isCloseStrike ? 1.0 : 0.4; 
+    // 2. DELAY: Sound travels slower. Close = instant, Distant = 1 to 2 seconds later.
+    const delayMs = isCloseStrike ? 0 : 1000 + Math.random() * 1000;
+    setTimeout(() => {
+      if (state !== 'play') return; // Prevents delayed rumbles if the player dies/pauses
+      // 3. AUDIO: Trigger the synthesized thunder
+      sfxSafe(() => sfx.thunder(isCloseStrike));
+      // 4. HAPTICS: Shake the phone in perfect sync with the audio wave
+      if (navigator.vibrate) {
+        if (isCloseStrike) {
+          navigator.vibrate([80, 40, 150, 50, 300, 60, 400]); 
+        } else {
+          navigator.vibrate([30, 50, 100, 100, 200]); 
+        }
+      }
+    }, delayMs);
+  }
+  // Spawn Particles
+  while (Math.random() < spawnRate) {
+      let p = {
+        type: weather,
+        x: Math.random() * cv.clientWidth,
+        // Pre-fill the screen during the first 0.2 seconds of the round. Prevents only top half of phone having weather
+        y: (weather === 'fog' || t < 0.5) ? Math.random() * cv.clientHeight : -20,
+        vx: (Math.random() - 0.5) * 10,
+        vy: 10, ang: Math.random() * Math.PI * 2,
+        spin: 0, scale: 1, alpha: 1,
+        targetY: 100 + Math.random() * (cv.clientHeight - 50) // Gives everything a random floor
+      };
+      
+      if (weather === 'snow') {
+        p.vy = 20 + Math.random() * 30;
+        p.scale = 1 + Math.random() * 2.5;
+        p.alpha = 0.4 + Math.random() * 0.5;
+        p.spin = (Math.random() - 0.5) * 2;
+      } else if (weather === 'rain' || weather === 'storm') {
+        p.vy = (weather === 'storm' ? 350 : 250) + Math.random() * 100;
+        p.vx = (weather === 'storm' ? 30 : 5) + (Math.random() - 0.5) * 20; // Storms slant sideways
+        p.alpha = 0.2 + Math.random() * 0.3;
+        // Set a random "floor" height where this specific drop will splash
+        p.targetY = 100 + Math.random() * (cv.clientHeight - 50); //Gives illusion of water hitting the ground      
+      } else if (weather === 'autumn') {
+        p.vy = 30 + Math.random() * 40;
+        p.vx = (Math.random() - 0.5) * 20;
+        p.spin = (Math.random() - 0.5) * 4;
+        p.scale = 0.4 + Math.random() * 0.5;
+        p.hue = 15 + Math.random() * 40;
+        p.lum = 40 + Math.random() * 20;
+      } else if (weather === 'fog') {
+        p.x = (wind.active && wind.vx > 0) ? -200 : cv.clientWidth + 200;
+        p.y = Math.random() * cv.clientHeight;
+        p.vy = (Math.random() - 0.5) * 5;
+        p.vx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 20);
+        p.scale = 150 + Math.random() * 200; // Massive radius
+        p.alpha = 0.15 + Math.random() * 0.02; // Barely visible mist
+      }
+      weatherParticles.push(p);
+      spawnRate -= 1; // Allows multiple spawns per frame for storms
+    }
+  }
+
+  // Fade out lightning
+  if (lightningFlash > 0) lightningFlash = Math.max(0, lightningFlash - dt * 2.5);
+
+// Apply Physics to existing particles
+  for (let i = weatherParticles.length - 1; i >= 0; i--) {
+    let p = weatherParticles[i];
+    if (!frozen) {
+      
+     // 1. Attached Particles Logic
+      if (p.attachedTo) {
+        if (p.stickTime !== 99999) p.stickTime -= dt;
+        // The wind rips attached snow and leaves right off their backs!
+        if (p.stickTime <= 0 || p.attachedTo.squished || (wind.active && Math.random() < 0.04)) {
+          p.attachedTo = null; // Unstick!
+          p.vx = (Math.random() > 0.5 ? 1 : -1) * 30 + (wind.active ? wind.vx * 1.5 : 0); 
+          p.vy = wind.active ? -10 - Math.random() * 30 : 40; 
+        } else {
+          // Stick to the ant's back
+          p.x = p.attachedTo.x + p.offsetX;
+          p.y = p.attachedTo.y + p.offsetY;
+          continue; 
+        }
+      }
+
+      // 2. Accumulated Snow & Leaves (Logs, Rocks & Ground)
+      if (p.landed) {
+        // Massive wind gusts peel accumulated snow and leaves back into the air
+        if (wind.active && wind.intensity > 0.3 && Math.random() < 0.03) {
+          p.landed = false;
+          p.hitRock = false;
+          p.vy = -20 - Math.random() * 50; // Lift up into the air
+          p.vx = wind.vx * (p.type === 'snow' ? 2 : 1.5); // Fling sideways
+          continue;
+        }
+
+        p.landedTimer = (p.landedTimer || 0) + dt;
+        // Snow on rocks lasts essentially forever (45s), ground/branches fade after 10s
+        const meltDelay = (p.type === 'snow' && p.hitRock) ? 45 : 10;
+        if (p.landedTimer > meltDelay) p.alpha -= dt * (p.hitRock ? 0.02 : 0.1); 
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
+        continue; // Skip normal falling physics
+      }
+
+      // 3. Normal Falling Physics
+      let windMult = p.type === 'snow' ? 2 : p.type === 'rain' ? 0.3 : p.type === 'storm' ? 0.8 : 1.5;
+      if (p.type === 'splash') windMult = 0.5;
+      let currentWind = wind.active ? wind.vx * windMult : 0;
+      
+      p.x += (p.vx + currentWind) * dt;
+      p.y += p.vy * dt;
+      if (p.spin) p.ang += p.spin * dt;
+
+      if (p.type === 'snow' || p.type === 'autumn') p.vx += Math.sin(now / 400 + p.y) * 15 * dt;
+
+      // Wrap snow around the screen horizontally during wind gusts
+      if (p.type === 'snow' && !p.landed && !p.attachedTo) {
+        if (p.x < -50) p.x = cv.clientWidth + 50;
+        if (p.x > cv.clientWidth + 50) p.x = -50;
+      }
+
+      if (p.type === 'splash') {
+        p.vy += 400 * dt; 
+        p.alpha -= dt * 3.5; 
+        if (p.alpha <= 0) { weatherParticles.splice(i, 1); continue; }
+      }
+
+      // 4. Advanced Hit Detection
+      if (p.type !== 'splash' && p.type !== 'fog') {
+        let hitAnt = null;
+        for (const b of bugs) {
+          if (!b.squished && Math.hypot(p.x - b.x, p.y - b.y) < b.w * 0.6) { hitAnt = b; break; }
+        }
+        
+        let hitBranch = false;
+        let hitRock = false;
+        
+        if (!hitAnt) {
+          // Rocks are drawn as squished ellipses. 
+          // We drastically shrink the hit radius to 65% and account for the snowflake's size to prevent edge overhang.
+          for (const pb of pebbles) {
+            if (Math.hypot(p.x - pb.x, p.y - pb.y) < pb.r * 0.65 - p.scale) { hitRock = true; break; }
+          }
+          
+          if (!hitRock) {
+            for (const f of overgrowth) {
+              if (f.type === 'branch') {
+                // The branch visually bows via a quadratic curve. 
+                // We approximate it with 2 straight line segments using a mathematical midpoint apex.
+                const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
+                const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+                const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
+                const y2 = f.y + Math.sin(f.ang)*(f.len/2);
+                
+                // Calculate the physical apex (midpoint) of the curve
+                const xMid = f.x - Math.sin(f.ang) * (f.curveY / 2);
+                const yMid = f.y + Math.cos(f.ang) * (f.curveY / 2);
+                
+                // Check the left half and right half separately
+                if (distToSegment(p.x, p.y, x1, y1, xMid, yMid) < 4 - p.scale ||  //Shrinks or Expands hit box zone
+                    distToSegment(p.x, p.y, xMid, yMid, x2, y2) < 4 - p.scale) {  //Rotation and angle matter a lot for hits
+                  hitBranch = true; break; 
+                }
+                
+                for (const sb of f.subBranches) {
+                  const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly;
+                  const sy1 = f.y + Math.sin(f.ang)*sb.lx + Math.cos(f.ang)*sb.ly;
+                  const localEx = sb.lx + Math.cos(sb.ang)*sb.len;
+                  const localEy = sb.ly + Math.sin(sb.ang)*sb.len;
+                  const sx2 = f.x + Math.cos(f.ang)*localEx - Math.sin(f.ang)*localEy;
+                  const sy2 = f.y + Math.sin(f.ang)*localEx + Math.cos(f.ang)*localEy;
+                  // Radius shrank to 3 for sub-branches
+                  if (distToSegment(p.x, p.y, sx1, sy1, sx2, sy2) < 5) { hitBranch = true; break; } //Hit box radius for branches
+                }
+                if (hitBranch) break;
+              }
+            }
+          }
+        }
+
+        let hitFloor = (!hitAnt && !hitBranch && !hitRock && p.y > p.targetY);
+
+        // 5. Material Reactions
+        if (p.type === 'rain' || p.type === 'storm') {
+          if (hitAnt || hitFloor || hitBranch || hitRock) {            
+            if (hitAnt) {
+              hitAnt.drops = hitAnt.drops || [];
+              hitAnt.drops.push({ t: 0, xOffset: (Math.random() - 0.5) * hitAnt.w * 0.5, speed: 1.5 + Math.random() });
+            }            
+            // Only spawn bouncing splashes off hard surfaces and ants
+            if (hitAnt || hitBranch || hitRock) {
+              let splashCount = 2 + Math.floor(Math.random() * 2);
+              for(let s = 0; s < splashCount; s++) {
+                weatherParticles.push({
+                  type: 'splash', x: p.x, y: p.y,
+                  vx: (Math.random() - 0.5) * 80 + currentWind, vy: -40 - Math.random() * 60,
+                  alpha: 0.6 + Math.random() * 0.3, scale: 0.8 + Math.random() * 1.2
+                });
+              }
+            }
+            
+            weatherParticles.splice(i, 1); continue;
+          }
+        }
+        else if (p.type === 'snow') {
+          if (hitAnt) {
+            // Only a small 12% chance for a snowflake to stick
+            if (Math.random() < 0.12) {
+              p.attachedTo = hitAnt;
+              const angleToCenter = Math.atan2(p.y - hitAnt.y, p.x - hitAnt.x);
+              const tightDist = Math.min(Math.hypot(p.x - hitAnt.x, p.y - hitAnt.y), hitAnt.w * 0.25);
+              p.offsetX = Math.cos(angleToCenter) * tightDist;
+              p.offsetY = Math.sin(angleToCenter) * tightDist;
+              p.stickTime = 99999; 
+            } else {
+              weatherParticles.splice(i, 1); continue; // Melts/glances off
+            }
+          } else if (hitBranch || hitFloor || hitRock) {
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+            p.hitRock = hitRock; 
+          }
+        }
+        else if (p.type === 'autumn') {
+          if (hitAnt) {
+            let roll = Math.random();
+            if (roll < 0.25) { 
+              p.vx = (Math.random() > 0.5 ? 1 : -1) * 40;
+            } else { 
+              p.attachedTo = hitAnt;
+              p.offsetX = p.x - hitAnt.x; 
+              p.offsetY = p.y - hitAnt.y;
+              p.stickTime = roll > 0.5 ? 99999 : 1 + Math.random() * 2; 
+            }
+          } else if (hitBranch || hitFloor || hitRock) {
+            p.landed = true; p.vx = 0; p.vy = 0; p.spin = 0; 
+          }
+        }
+      }
+    }
+
+    // 6. Memory Cleanup for off-screen particles
+    if (p.y > cv.clientHeight + 250 || p.y < -250 || p.x < -300 || p.x > cv.clientWidth + 300) {
+      weatherParticles.splice(i, 1);
+    }
+  }
+  // === END WEATHER PHYSICS ===
+    const left = 1-(now-roundStart)/roundLen;
+    if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
+    $timebar.style.width = (Math.max(left,0)*100)+'%';
+    $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
+    if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
+  }
+  let obstacleCache=null;
+  function obstacles(){
+    if(obstacleCache) return obstacleCache;
+    const cr=cv.getBoundingClientRect();
+    const obs=pebbles.map(p=>({...p,r:p.r+13})).concat(splats.map(p=>({...p,r:23})));
+    for(const f of overgrowth) {
+        if(f.type === 'branch' && f.contactPoints) {
+            for(const cp of f.contactPoints) {
+                const gx = f.x + Math.cos(f.ang)*cp.lx - Math.sin(f.ang)*cp.ly;
+                const gy = f.y + Math.sin(f.ang)*cp.lx + Math.cos(f.ang)*cp.ly;
+                obs.push({x: gx, y: gy, r: cp.r + 10}); 
+            }
+        }
+    }
+    for(const el of [btnScan,btnFrz,document.getElementById('t-ernie')]){
+      if(!el || getComputedStyle(el).display==='none') continue;
+      const r=el.getBoundingClientRect(); obs.push({x:r.left-cr.left+r.width/2,y:r.top-cr.top+r.height/2,r:r.width/2+20});
+    }
+    return obs;
+  }
+  function segmentClear(a,b,obs){
+    const dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy;
+    return obs.every(o=>{const p=Math.max(0,Math.min(1,((o.x-a.x)*dx+(o.y-a.y)*dy)/(len||1)));return Math.hypot(a.x+p*dx-o.x,a.y+p*dy-o.y)>=o.r+2;});
+  }
+  function routeTo(b,tg,obs){
+    const nodes=[{x:b.x,y:b.y},tg];
+    for(const o of obs)for(const sx of [-1,1])for(const sy of [-1,1]){
+      const n={x:o.x+sx*(o.r+7),y:o.y+sy*(o.r+7)};
+      if(n.x>17&&n.x<cv.clientWidth-17&&n.y>61&&n.y<cv.clientHeight-40&&obs.every(p=>dist(n,p)>p.r+3))nodes.push(n);
+    }
+    const costs=nodes.map(()=>Infinity),prev=[],done=new Set();costs[0]=0;
+    for(let k=0;k<nodes.length;k++){
+      let u=-1;for(let i=0;i<nodes.length;i++)if(!done.has(i)&&(u<0||costs[i]<costs[u]))u=i;
+      if(u<0||!Number.isFinite(costs[u]))break;if(u===1)break;done.add(u);
+      for(let v=1;v<nodes.length;v++)if(!done.has(v)&&segmentClear(nodes[u],nodes[v],obs)){
+        const c=costs[u]+dist(nodes[u],nodes[v]);if(c<costs[v]){costs[v]=c;prev[v]=u;}
+      }
+    }
+    if(!Number.isFinite(costs[1]))return [];
+    const path=[];for(let i=1;i!==0;i=prev[i])path.unshift(nodes[i]);return path;
+  }
+  function steerAround(b,tg,step){
+    const obs=obstacles();let dest=tg;
+    if(segmentClear(b,tg,obs)){b.route=null;}
+    else{
+      const key=Math.round(tg.x/20)+','+Math.round(tg.y/20)+','+obs.length;
+      if(!b.route||b.routeKey!==key||!b.route.length||!segmentClear(b,b.route[0],obs)){
+        b.route=routeTo(b,tg,obs);b.routeKey=key;
+      }
+      while(b.route.length && dist(b,b.route[0])<Math.max(8,step*2))b.route.shift();
+      if(b.route.length)dest=b.route[0];
+    }
+    return Math.atan2(dest.y-b.y,dest.x-b.x);
+  }
+  function resolveTerrain(b){
+    for(let pass=0;pass<3;pass++) for(const o of obstacles()){
+      const d=Math.hypot(b.x-o.x,b.y-o.y);
+      if(d<o.r){const a=d<.001?b.ang:Math.atan2(b.y-o.y,b.x-o.x);b.x=o.x+Math.cos(a)*o.r;b.y=o.y+Math.sin(a)*o.r;}
+    }
+  }
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function clampSoft(b, Wv, Hv){
+    const mx=16, mTop=60, mBot=40;
+    if(b.x<mx||b.x>Wv-mx||b.y<mTop||b.y>Hv-mBot){
+      b.ang = Math.atan2(Hv/2-b.y, Wv/2-b.x) + (Math.random()-0.5)*1.2;
+      b.x=Math.max(mx,Math.min(Wv-mx,b.x)); b.y=Math.max(mTop,Math.min(Hv-mBot,b.y));
+    }
+  }
+
+  function drawBug(b, now){
+    const isB=(b===bugBug);
+    if(isB && b.hitAt && now-b.hitAt<700){
+      ctx.save();
+      ctx.strokeStyle='#39d64a'; ctx.lineWidth=3;
+      ctx.strokeRect(b.x-22, b.y-22, 44, 44);
+      ctx.globalAlpha=Math.max(0,1-(now-b.hitAt)/700)*0.25;
+      ctx.fillStyle='#39d64a';
+      ctx.fillRect(b.x-22, b.y-22, 44, 44);
+      ctx.restore();
+    }
+    if(now<(b.startledUntil||0)){
+      ctx.save();ctx.fillStyle='#ffd27a';ctx.font='bold 19px Courier New';ctx.textAlign='center';ctx.fillText('?!',b.x,b.y-29);ctx.restore();
+    }
+    const wob = Math.sin(b.t*6)*1.5;
+    ctx.save();
+    ctx.translate(b.x, b.y+wob*0.3);
+    ctx.rotate(b.ang + Math.PI/2);
+    const baseCol = `hsl(${b.hue}, 50%, 35%)`;
+    const lightCol = `hsl(${b.hue}, 60%, 55%)`;
+    const darkCol = `hsl(${b.hue}, 60%, 15%)`;
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 6; ctx.shadowOffsetY = 4;
+    ctx.strokeStyle = darkCol; ctx.lineWidth = b.w * 0.15; ctx.lineCap = 'round'; ctx.lineJoin = 'round';    
+    // Fade the legs to 15% opacity if the ant is submerged in the puddle
+    let inPuddle = puddle && Math.hypot(b.x - puddle.x, b.y - puddle.y) < puddle.r * 0.85;
+    ctx.globalAlpha = inPuddle ? 0.15 : 1.0;    
+    for(let s=-1;s<=1;s+=2){
+      for(let l=0;l<3;l++){
+        const ly = -b.w*0.2 + l*b.w*0.35;
+        const sw = Math.sin(b.t*10 + l*2 + (s>0?0:Math.PI))*2.5;
+        const jx = s*b.w*0.6, jy = ly + sw*0.3;
+        const ex = s*b.w*0.9, ey = ly + sw*0.7 + (l===2?b.w*0.2:0); 
+        ctx.beginPath(); ctx.moveTo(s*b.w*0.2, ly); ctx.lineTo(jx, jy); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1.0; // Reset alpha for the main body
+    ctx.shadowColor = 'transparent';
+    const abdGrad = ctx.createRadialGradient(0, b.w*0.3, b.w*0.1, 0, b.w*0.4, b.w*0.8);
+    abdGrad.addColorStop(0, lightCol); abdGrad.addColorStop(0.4, baseCol); abdGrad.addColorStop(1, darkCol);
+    ctx.fillStyle = abdGrad;
+    ctx.beginPath(); ctx.moveTo(0, -b.w*0.1); ctx.bezierCurveTo(b.w*0.6, -b.w*0.1, b.w*0.7, b.w*1.1, 0, b.w*1.3);
+    ctx.bezierCurveTo(-b.w*0.7, b.w*1.1, -b.w*0.6, -b.w*0.1, 0, -b.w*0.1); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-b.w*0.45, b.w*0.5); ctx.quadraticCurveTo(0, b.w*0.65, b.w*0.45, b.w*0.5);
+    ctx.moveTo(-b.w*0.35, b.w*0.8); ctx.quadraticCurveTo(0, b.w*0.95, b.w*0.35, b.w*0.8); ctx.stroke();
+    const thoGrad = ctx.createRadialGradient(0, -b.w*0.2, 0, 0, -b.w*0.2, b.w*0.4);
+    thoGrad.addColorStop(0, lightCol); thoGrad.addColorStop(1, darkCol);
+    ctx.fillStyle = thoGrad;
+    ctx.beginPath(); ctx.ellipse(0, -b.w*0.2, b.w*0.35, b.w*0.45, 0, 0, Math.PI*2); ctx.fill();
+    const headGrad = ctx.createRadialGradient(0, -b.w*0.7, 0, 0, -b.w*0.7, b.w*0.35);
+    headGrad.addColorStop(0, lightCol); headGrad.addColorStop(1, darkCol);
+    ctx.fillStyle = headGrad;
+    ctx.beginPath(); ctx.ellipse(0, -b.w*0.75, b.w*0.38, b.w*0.32, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a0d00';
+    ctx.beginPath(); ctx.moveTo(-b.w*0.15, -b.w*1.05); ctx.quadraticCurveTo(-b.w*0.3, -b.w*1.3, -b.w*0.05, -b.w*1.35);
+    ctx.quadraticCurveTo(-b.w*0.1, -b.w*1.2, -b.w*0.05, -b.w*1.05); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(b.w*0.15, -b.w*1.05); ctx.quadraticCurveTo(b.w*0.3, -b.w*1.3, b.w*0.05, -b.w*1.35);
+    ctx.quadraticCurveTo(b.w*0.1, -b.w*1.2, b.w*0.05, -b.w*1.05); ctx.fill();
+    const eyeGrad = ctx.createLinearGradient(0, -b.w*0.9, 0, -b.w*0.6);
+    eyeGrad.addColorStop(0, '#000'); eyeGrad.addColorStop(0.5, '#400'); eyeGrad.addColorStop(1, '#000');
+    ctx.fillStyle = eyeGrad;
+    ctx.beginPath(); ctx.ellipse(-b.w*0.35, -b.w*0.8, b.w*0.1, b.w*0.18, -0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(b.w*0.35, -b.w*0.8, b.w*0.1, b.w*0.18, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = darkCol; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-b.w*0.15, -b.w*1.0); ctx.quadraticCurveTo(-b.w*0.4, -b.w*1.2, -b.w*0.5, -b.w*1.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b.w*0.15, -b.w*1.0); ctx.quadraticCurveTo(b.w*0.4, -b.w*1.2, b.w*0.5, -b.w*1.5); ctx.stroke();
+    if(b.carrying){
+      ctx.save();
+      ctx.translate(0, -b.w*1.1); ctx.rotate(0.2);
+      const load = Math.min(2.5, 1 + 0.22*Math.max(0, (b.cargo||1)-1));
+      ctx.scale(load, load);
+      const cw = b.w*0.35;
+      ctx.fillStyle = '#fff9e6';
+      ctx.beginPath(); ctx.moveTo(0, -cw); ctx.lineTo(cw, -cw*0.5); ctx.lineTo(0, 0); ctx.lineTo(-cw, -cw*0.5); ctx.fill();
+      ctx.fillStyle = '#e6c875';
+      ctx.beginPath(); ctx.moveTo(-cw, -cw*0.5); ctx.lineTo(0, 0); ctx.lineTo(0, cw*0.8); ctx.lineTo(-cw, cw*0.3); ctx.fill();
+      ctx.fillStyle = '#c79f32';
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(cw, -cw*0.5); ctx.lineTo(cw, cw*0.3); ctx.lineTo(0, cw*0.8); ctx.fill();
+      ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(-cw, -cw*0.5); ctx.lineTo(0, 0); ctx.lineTo(cw, -cw*0.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, cw*0.8); ctx.stroke();
+      ctx.restore(); // Restores from the crumb rotation
+    } 
+    // === WATER ROLLING OFF THE BACK ===
+    if (b.drops && b.drops.length > 0) {
+      ctx.fillStyle = 'rgba(200, 230, 255, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 0.5; 
+      for (const drop of b.drops) {
+        // drop.t slides from 0.0 (thorax) to 1.0 (tail)
+        let dropY = -b.w * 0.1 + (drop.t * b.w * 1.3); 
+        // Wiggle slightly left and right as it slides
+        let dropX = drop.xOffset + Math.sin(drop.t * 15) * 1.5; 
+        // Shrink the drop as it gets closer to dripping off
+        let dropSize = Math.max(0.5, b.w * 0.15 * (1 - drop.t));
+        ctx.beginPath();
+        ctx.ellipse(dropX, dropY, dropSize * 0.7, dropSize * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    // === END WATER ===
+    ctx.restore(); // Restores from the ant's main body rotation
+  }
+
+  // === PROCEDURAL TERRAIN GENERATOR ===
+  // themes lives at file scope: BOTH generateBackground and drawDecor read it
+  // (drawDecor does (round-1) % themes.length; keeping it inside the function
+  //  made drawDecor throw ReferenceError every frame -> black game area, b3b5e4d)
+  const themes = [
+      // --- The 9 New Weather & Nature Themes ---
+      // 1. Snow Blanket
+      { base: '#d8e5e8', dirt: '#5c4d43', glow: 'rgba(255,255,255,0.3)', shadow: 'rgba(100,120,140,0.15)', gritDark: 'rgba(100,110,120,0.3)', gritLight: 'rgba(255,255,255,0.7)', density: 12000 },
+      // 2. Light Rain
+      { base: '#436b36', dirt: '#362415', glow: 'rgba(150,180,210,0.1)', shadow: 'rgba(5,15,25,0.4)', gritDark: 'rgba(10,20,15,0.4)', gritLight: 'rgba(200,220,255,0.25)', density: 7500 },
+      // 3. Thunderstorm
+      { base: '#2b4028', dirt: '#21160d', glow: 'rgba(220,230,255,0.15)', shadow: 'rgba(5,5,15,0.6)', gritDark: 'rgba(0,0,5,0.5)', gritLight: 'rgba(180,200,255,0.2)', density: 7000 },
+      // 4. Dense Fog
+      { base: '#708269', dirt: '#595048', glow: 'rgba(255,255,255,0.4)', shadow: 'rgba(200,210,205,0.2)', gritDark: 'rgba(40,50,45,0.2)', gritLight: 'rgba(255,255,255,0.3)', density: 5000 },
+      // 5. Autumn Wind
+      { base: '#a8943f', dirt: '#704f29', glow: 'rgba(255,180,100,0.15)', shadow: 'rgba(40,20,0,0.2)',  gritDark: 'rgba(50,30,10,0.3)', gritLight: 'rgba(255,200,100,0.25)', density: 9000 },
+      // 6. Golden Hour
+      { base: '#8fa84c', dirt: '#785536', glow: 'rgba(255,250,220,0.22)', shadow: 'rgba(40,20,0,0.1)',  gritDark: 'rgba(60,40,20,0.3)', gritLight: 'rgba(255,255,255,0.25)', density: 9500 },
+      // 7. Overcast
+      { base: '#5c8a3e', dirt: '#4a3220', glow: 'rgba(200,220,255,0.12)', shadow: 'rgba(0,10,20,0.25)', gritDark: 'rgba(0,20,0,0.35)', gritLight: 'rgba(200,255,200,0.15)', density: 8500 },
+      // 8. Summer Spring
+      { base: '#6b9c49', dirt: '#5c4028', glow: 'rgba(255,245,200,0.18)', shadow: 'rgba(0,0,0,0.15)', gritDark: 'rgba(20,40,10,0.3)', gritLight: 'rgba(255,255,220,0.25)', density: 8500 },
+      // 9. Summer Noon
+      { base: '#7c9e3f', dirt: '#694b32', glow: 'rgba(255,230,150,0.18)', shadow: 'rgba(20,10,0,0.15)', gritDark: 'rgba(40,20,10,0.3)', gritLight: 'rgba(255,240,200,0.25)', density: 8500 },
+      // --- The 4 Original Classic Themes ---
+     // 10. Coarse Dirt
+      { base: '#3a2d24', dirt: '#2e221b', glow: 'rgba(0,0,0,0.6)', shadow: 'rgba(0,0,0,0.8)', gritDark: 'rgba(20,10,0,0.5)', gritLight: 'rgba(255,255,255,0.05)', density: 7000 },
+      // 11. Smooth Dirt
+      { base: '#2b1f16', dirt: '#2b1f16', glow: 'rgba(20,10,5,0.5)', shadow: 'rgba(20,10,5,0.5)', gritDark: 'rgba(0,0,0,0.2)', gritLight: 'rgba(255,255,255,0.02)', density: 2500 },
+      // 12. Clay
+      { base: '#4a2511', dirt: '#4a2511', glow: 'rgba(30,10,0,0.5)', shadow: 'rgba(30,10,0,0.5)', gritDark: 'rgba(40,10,0,0.5)', gritLight: 'rgba(255,150,100,0.05)', density: 4500 },
+      // 13. Sand
+      { base: '#c2a578', dirt: '#c2a578', glow: 'rgba(120,90,40,0.2)', shadow: 'rgba(120,90,40,0.2)', gritDark: 'rgba(100,70,30,0.3)', gritLight: 'rgba(255,255,255,0.2)', density: 12000 },
+      // 14. Evening Blue - Ernie made this :)
+      { base: '#4a6b8a', dirt: '#3c3226', glow: 'rgba(180,200,255,0.16)', shadow: 'rgba(0,0,30,0.3)', gritDark: 'rgba(0,10,30,0.35)', gritLight: 'rgba(200,220,255,0.2)', density: 8500 }
+  ];
+
+  function generateBackground(Wv, Hv, themeIndex) {
+    bgCanvas.width = Wv; bgCanvas.height = Hv;
+    const t = themes[themeIndex];
+    bgCtx.fillStyle = t.base;
+    bgCtx.fillRect(0, 0, Wv, Hv);
+    bgCtx.fillStyle = t.dirt;
+    bgCtx.beginPath();
+    bgCtx.moveTo(-50, Hv * 0.75);
+    bgCtx.bezierCurveTo(Wv * 0.3, Hv * 0.65, Wv * 0.6, Hv * 0.9, Wv + 50, Hv * 0.7);
+    bgCtx.lineTo(Wv + 50, Hv + 50);
+    bgCtx.lineTo(-50, Hv + 50);
+    bgCtx.fill();
+    const drawDirtPatch = (x, y, radius) => {
+      const patchGrad = bgCtx.createRadialGradient(x, y, radius * 0.1, x, y, radius);
+      patchGrad.addColorStop(0, t.dirt);
+      patchGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      bgCtx.fillStyle = patchGrad;
+      bgCtx.beginPath(); bgCtx.arc(x, y, radius, 0, Math.PI * 2); bgCtx.fill();
+    };
+    drawDirtPatch(Wv * 0.25, Hv * 0.3, 160);
+    drawDirtPatch(Wv * 0.75, Hv * 0.35, 190);
+    const bgGlow = bgCtx.createRadialGradient(Wv / 2, Hv * 0.3, 50, Wv / 2, Hv / 2, Math.max(Wv, Hv) * 0.9);
+    bgGlow.addColorStop(0, t.glow); 
+    bgGlow.addColorStop(1, t.shadow); 
+    bgCtx.fillStyle = bgGlow;
+    bgCtx.fillRect(0, 0, Wv, Hv);
+    bgCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+    bgCtx.lineWidth = 1;
+    for(let x = 0; x < Wv; x += 40){ bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, Hv); bgCtx.stroke(); }
+    for(let i = 0; i < t.density; i++) {
+      const px = Math.random() * Wv;
+      const py = Math.random() * Hv;
+      bgCtx.fillStyle = Math.random() > 0.55 ? t.gritLight : t.gritDark;
+      const size = Math.random() > 0.85 ? 2 : 1; 
+      bgCtx.fillRect(px, py, size, size);
+    }
+  }
+
+  function drawDecor(){
+    const Wv=cv.clientWidth, Hv=cv.clientHeight;
+    // Backgrounds are ASSIGNED by level, not random: bg 1-5 -> levels 1-5, then 6-10 loops back through the same order (Shaun 09-23)
+    const themeIndex = (round - 1) % themes.length;
+    if(cachedRoundTheme !== themeIndex || bgCanvas.width !== Wv) {
+        generateBackground(Wv, Hv, themeIndex);
+        cachedRoundTheme = themeIndex;
+    }
+    ctx.drawImage(bgCanvas, 0, 0, Wv, Hv);
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetY = 8;
+    const nestGrad = ctx.createRadialGradient(nestX, nestY-20, 10, nestX, nestY-30, 65);
+    nestGrad.addColorStop(0, '#362a1b');
+    nestGrad.addColorStop(0.7, '#1f160e');
+    nestGrad.addColorStop(1, '#0f0a06');
+    ctx.fillStyle = nestGrad;
+    ctx.beginPath();
+    ctx.moveTo(nestX-70, nestY);
+    ctx.bezierCurveTo(nestX-65, nestY-50, nestX-30, -10+nestY-50, nestX, nestY-65);
+    ctx.bezierCurveTo(nestX+30, -10+nestY-50, nestX+65, nestY-50, nestX+70, nestY);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    const holeGrad = ctx.createRadialGradient(nestX, nestY-18, 2, nestX, nestY-16, 28);
+    holeGrad.addColorStop(0, '#000');
+    holeGrad.addColorStop(0.8, '#080503');
+    holeGrad.addColorStop(1, '#1f160e');
+    ctx.fillStyle = holeGrad;
+    ctx.beginPath(); ctx.ellipse(nestX, nestY-18, 30, 18, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(nestX, nestY-18, 30, 18, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#8bba9f'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('NEST', nestX, nestY+26);
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 6;
+    const sugarGrad = ctx.createRadialGradient(sugarX, Hv-24, 10, sugarX, Hv-20, 70);
+    sugarGrad.addColorStop(0, '#fff4cc');
+    sugarGrad.addColorStop(0.5, '#e0b855');
+    sugarGrad.addColorStop(1, '#664a10');
+    ctx.fillStyle = sugarGrad;
+    ctx.beginPath();
+    ctx.moveTo(sugarX-75, Hv);
+    ctx.quadraticCurveTo(sugarX-70, Hv-45, sugarX-20, Hv-48);
+    ctx.quadraticCurveTo(sugarX, Hv-60, sugarX+20, Hv-48);
+    ctx.quadraticCurveTo(sugarX+70, Hv-45, sugarX+75, Hv);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    for(let i=0;i<18;i++){
+      const cx = sugarX - 45 + (i*17 % 90);
+      const cy = Hv - 10 - (i*23 % 35);
+      const cw = 4 + (i%3)*2;
+      const rot = (i*0.5) % (Math.PI/2);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+      ctx.fillStyle = i%2 === 0 ? '#ffffff' : '#ffefba'; ctx.globalAlpha = 0.85; ctx.fillRect(-cw/2, -cw/2, cw, cw);
+      ctx.strokeStyle = '#c49733'; ctx.lineWidth = 0.5; ctx.globalAlpha = 1; ctx.strokeRect(-cw/2, -cw/2, cw, cw);
+      ctx.restore();
+    }
+    ctx.fillStyle='#ffe2a0'; ctx.font='bold 11px Courier New'; ctx.fillText('SUGAR', sugarX, Hv-7);
+    ctx.textAlign='start';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    for(const p of pebbles){
+      const pGrad = ctx.createRadialGradient(p.x-p.r*0.2, p.y-p.r*0.2, p.r*0.1, p.x, p.y, p.r);
+      pGrad.addColorStop(0, '#586970'); pGrad.addColorStop(0.6, '#2a3438'); pGrad.addColorStop(1, '#161c1e');
+      ctx.fillStyle = pGrad;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r*0.8, p.x%3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.beginPath(); ctx.ellipse(p.x-p.r*0.3, p.y-p.r*0.3, p.r*0.4, p.r*0.25, p.x%2, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.shadowColor = 'transparent';
+    // Draw the growing puddle with wind ripples
+    // Draw the growing puddle with wind ripples and a dark mud perimeter
+    if (puddle && puddle.r > 0) {
+      ctx.save();
+      ctx.translate(puddle.x, puddle.y);
+      let ripple = wind.active ? Math.sin(gameNow / 100) * (wind.intensity * 4) : 0; 
+      const pGrad = ctx.createRadialGradient(ripple, 0, 0, 0, 0, puddle.r);
+      pGrad.addColorStop(0, 'rgba(80, 110, 130, 0.6)');
+      pGrad.addColorStop(0.75, 'rgba(100, 130, 150, 0.4)');
+      // Sharp, dark "wet dirt" ring right around the expanding edge
+      pGrad.addColorStop(0.92, 'rgba(20, 15, 10, 0.45)'); 
+      pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)'); 
+      ctx.fillStyle = pGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, puddle.r, puddle.r * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      if (wind.active && wind.intensity > 0.1) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(ripple, 0, puddle.r * 0.5, puddle.r * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(ripple*1.5, 0, puddle.r * 0.25, puddle.r * 0.15, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } 
+  function drawSplats(){
+    for(const s of splats){
+      ctx.save(); ctx.translate(s.x, s.y);
+      ctx.fillStyle='rgba(60, 30, 10, 0.7)';
+      ctx.beginPath(); ctx.ellipse(0, 0, 18, 12, 0.4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#4a2b16';
+      ctx.beginPath(); ctx.ellipse(-2, -1, 10, 6, -0.2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#361c0b';
+      ctx.beginPath(); ctx.ellipse(3, 2, 8, 5, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#2e190d'; ctx.lineWidth=1.5; ctx.lineCap='round';
+      for(let k=0;k<6;k++){
+        const an=-2.6 + k*1.1 + (k%2)*0.3;
+        const len = 7 + (k%3)*3;
+        ctx.beginPath(); ctx.moveTo(Math.cos(an)*5, Math.sin(an)*4); ctx.lineTo(Math.cos(an)*len, Math.sin(an)*len); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawHudInCanvas(){
+    const Wv=cv.clientWidth;
+    if(lifeFx){
+      const el = gameNow-lifeFx.t0;
+      if(el > 2000){ lifeFx = null; document.getElementById('celebrate').style.display='none'; }
+      else {
+        ctx.save();
+        ctx.textAlign='center';
+        document.getElementById('celebrate').style.display=el<1100?'block':'none';
+        if(el>=1100) {
+          const p = Math.min(1,(el-1100)/900);
+          const sx=Wv/2, sy=cv.clientHeight/2-40, exn=18+(sx-18)*(1-p), eyn=16+(sy-16)*(1-p*p);
+          ctx.globalAlpha = 1-p*0.3; ctx.font = '26px Courier New'; ctx.fillStyle = '#ff5d6c';
+          ctx.fillText('●', exn, eyn);
+        }
+        ctx.restore();
+      }
+    }
+    ctx.font='bold 15px Courier New'; ctx.textAlign='left'; ctx.fillStyle='#ff5d6c';
+    if(lives>0){for(let i=0;i<lives;i++)ctx.fillText('●',10+i*19,26);}else ctx.fillText('—',10,26);
+    const left = state==='play' ? Math.max(0, 1-(gameNow-roundStart)/roundLen) : (state==='hit'?0:1);
+    ctx.fillStyle='#0a1210'; ctx.fillRect(10, 34, Wv-20, 8);
+    ctx.fillStyle = left<0.3 ? '#ff5d6c' : '#39d98a';
+    ctx.fillRect(10, 34, (Wv-20)*left, 8);
+    ctx.textAlign='start';
+  }
+
+  function drawWindStreaks(now, Wv, Hv){
+    const inten = Number(wind.intensity)||0;
+    const tvx = Number(wind.targetVx)||0;
+    if(inten <= 0.01 || !tvx) return;
+    wind.intensity = inten; wind.targetVx = tvx;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for(let i=0; i<4; i++){
+      const pan = (now * wind.targetVx * 0.015 + i * 500) % (Wv + 800) - 400;
+      const dir = Math.sign(wind.targetVx);
+      const yBase = (i * 200) % (Hv - 100) + 100;
+      ctx.globalAlpha = wind.intensity * (0.15 + (i%2)*0.2);
+      ctx.beginPath(); ctx.moveTo(pan, yBase);
+      if (wind.pattern === 0) {
+          ctx.bezierCurveTo(pan + 200 * dir, yBase - 60, pan + 400 * dir, yBase + 60, pan + 600 * dir, yBase);
+      } else if (wind.pattern === 1) {
+          ctx.bezierCurveTo(pan + 100 * dir, yBase - 150, pan + 300 * dir, yBase + 100, pan + 500 * dir, yBase - 50);
+      } else {
+          ctx.bezierCurveTo(pan + 250 * dir, yBase - 200, pan + 350 * dir, yBase + 150, pan + 150 * dir, yBase + 50);
+          ctx.bezierCurveTo(pan + 50 * dir, yBase, pan + 150 * dir, yBase - 50, pan + 400 * dir, yBase);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawForeground(now){
+    for(const f of overgrowth){
+      ctx.save(); ctx.translate(f.x, f.y);
+      
+    if(f.type === 'grass') {
+        ctx.save();
+        ctx.rotate(f.spineAngle); 
+        ctx.lineCap = 'round';
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+        ctx.shadowColor = 'rgba(10, 15, 10, 0.4)'; 
+        ctx.shadowBlur = 20; 
+        ctx.strokeStyle = 'rgba(15, 22, 12, 0.1)'; 
+        ctx.lineWidth = f.r * 0.85; 
+        ctx.beginPath();
+        ctx.moveTo(-f.spineLen/2, 0);
+        ctx.quadraticCurveTo(0, f.spineCurve * 2, f.spineLen/2, 0);
+        ctx.stroke();
+        ctx.restore(); 
+        ctx.lineCap = 'round';
+        for(const b of f.blades){
+          let bend = wind.vx * 0.05; 
+          let partAlpha = 1;
+          const wx = f.x + b.ox, wy = f.y + b.oy;
+          for(const ant of bugs) {
+            if(ant.squished) continue;
+            const dist = Math.hypot(ant.x - wx, ant.y - wy);
+            if(dist < 28) { 
+              bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
+              partAlpha = 0.55; 
+            }
+          }
+          const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
+          ctx.strokeStyle = `hsla(${b.hue + 10}, 45%, ${b.lum - 10}%, ${partAlpha * 0.9})`;
+          ctx.lineWidth = 5.5; 
+          const shortLen = b.len * 0.6;
+          const cp1x = b.ox + Math.cos(b.an) * shortLen * 0.45;
+          const cp1y = b.oy + Math.sin(b.an) * shortLen * 0.45;
+          const cp2x = b.ox + Math.cos(finalAn) * shortLen * 0.8;
+          const cp2y = b.oy + Math.sin(finalAn) * shortLen * 0.8;
+          const endX = b.ox + Math.cos(finalAn) * shortLen;
+          const endY = b.oy + Math.sin(finalAn) * shortLen;
+          ctx.beginPath(); ctx.moveTo(b.ox, b.oy); 
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+          ctx.stroke();
+        }
+        for(const b of f.blades){
+          let bend = wind.vx * 0.05; 
+          let partAlpha = 1;
+          const wx = f.x + b.ox, wy = f.y + b.oy;
+          for(const ant of bugs) {
+            if(ant.squished) continue;
+            const dist = Math.hypot(ant.x - wx, ant.y - wy);
+            if(dist < 28) { 
+              bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
+              partAlpha = 0.55; 
+            }
+          }
+          const finalAn = b.an + Math.sin(now/800 + b.sway)*0.12 + bend;
+          ctx.strokeStyle = `hsla(${b.hue}, 60%, ${b.lum + 15}%, ${partAlpha})`;
+          ctx.lineWidth = 2.0; 
+          const cp1x = b.ox + Math.cos(b.an) * b.len * 0.45;
+          const cp1y = b.oy + Math.sin(b.an) * b.len * 0.45;
+          const cp2x = b.ox + Math.cos(finalAn) * b.len * 0.8;
+          const cp2y = b.oy + Math.sin(finalAn) * b.len * 0.8;
+          const endX = b.ox + Math.cos(finalAn) * b.len;
+          const endY = b.oy + Math.sin(finalAn) * b.len;
+          ctx.beginPath(); ctx.moveTo(b.ox, b.oy); 
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+          ctx.stroke();
+        }
+      }
+   else if (f.type === 'branch') {
+        ctx.rotate(f.ang);
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+        ctx.fillStyle = '#2a3438';
+        ctx.beginPath(); ctx.ellipse(f.len/2 - 10, 5, 18, 12, 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#48565c';
+        ctx.beginPath(); ctx.ellipse(f.len/2 - 12, 3, 12, 6, 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.shadowColor = 'transparent'; 
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineCap = 'round'; 
+        ctx.lineWidth = 18;
+        ctx.beginPath(); ctx.moveTo(-f.len/2, 10); ctx.quadraticCurveTo(0, f.curveY + 35, f.len/2, 10); ctx.stroke();
+        for(const sb of f.subBranches) {
+           ctx.lineWidth = 8;
+           ctx.beginPath(); ctx.moveTo(sb.lx, sb.ly + 10);
+           const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+           const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+           const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+           const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+           ctx.quadraticCurveTo(cpX, cpY + 20, endX, endY + 5); ctx.stroke();
+        }
+        ctx.restore();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#2d1b0f'; ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.moveTo(-f.len/2, 0); ctx.quadraticCurveTo(0, f.curveY, f.len/2, 0); ctx.stroke();
+        for(const sb of f.subBranches) {
+           ctx.lineWidth = 7;
+           ctx.beginPath(); ctx.moveTo(sb.lx, sb.ly); 
+           const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+           const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+           const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+           const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+           ctx.quadraticCurveTo(cpX, cpY, endX, endY); ctx.stroke();
+        }
+        ctx.strokeStyle = '#4a2f1d'; ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.moveTo(-f.len/2 + 2, 0); ctx.quadraticCurveTo(0, f.curveY, f.len/2 - 2, 0); ctx.stroke();
+        for(const sb of f.subBranches) {
+           ctx.lineWidth = 4;
+           ctx.beginPath(); ctx.moveTo(sb.lx, sb.ly); 
+           const endX = sb.lx + Math.cos(sb.ang)*sb.len;
+           const endY = sb.ly + Math.sin(sb.ang)*sb.len;
+           const cpX = sb.lx + Math.cos(sb.ang)*sb.len*0.5 - Math.sin(sb.ang)*sb.curve;
+           const cpY = sb.ly + Math.sin(sb.ang)*sb.len*0.5 + Math.cos(sb.ang)*sb.curve;
+           ctx.quadraticCurveTo(cpX, cpY, endX, endY); ctx.stroke();
+        }
+        ctx.fillStyle = '#1a0f08'; ctx.strokeStyle = '#1f1107'; ctx.lineWidth = 1.5;
+        for (const b of f.bark) {
+            ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        }
+        for (const k of f.knots) {
+            ctx.beginPath(); ctx.arc(k.x, k.y, 2, 0, Math.PI*2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function draw(now){
+    document.getElementById('frame').classList.toggle('cinematic',state==='cine');
+    if(!lifeFx)document.getElementById('celebrate').style.display='none';
+    drawDecor();
+    if(['play','hit','cine','advance'].includes(state)){
+      drawRadarTrail(now);
+      drawSplats();
+      drawHeists(now);
+      for(const b of bugs) if(!b.squished) drawBug(b, now);
+      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
+     // 1. Draw ATTACHED weather first (so it renders under the branches!)
+      const renderWeather = (p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+    //Start Types    
+       if (p.type === 'snow') {
+          ctx.globalAlpha = p.alpha;
+          // Draw geometric stars ONLY if they are actively falling
+          if (p.scale > 2.2 && !p.landed && !p.attachedTo) {
+            ctx.rotate(p.ang); 
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = p.scale * 0.3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            for(let k=0; k<6; k++) {
+              ctx.moveTo(0,0);
+              ctx.lineTo(Math.cos(k*Math.PI/3)*p.scale*1.8, Math.sin(k*Math.PI/3)*p.scale*1.8);
+            }
+            ctx.stroke();
+          } else {
+            // If landed or attached, draw as a soft packed snowball
+            // The stars landing look like spiderwebs and then splooge on a tree lol
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        else if (p.type === 'rain' || p.type === 'storm') {
+          ctx.globalAlpha = p.alpha;
+          ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
+          ctx.stroke();
+        } 
+        else if (p.type === 'splash') {
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        else if (p.type === 'autumn') {
+          ctx.globalAlpha = p.alpha; 
+          ctx.rotate(p.ang);
+          ctx.scale(p.scale, p.scale);
+          ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
+          ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
+          ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
+          ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
+          ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
+          ctx.shadowColor = 'transparent'; ctx.stroke();
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
+        } 
+        else if (p.type === 'fog') {
+          ctx.globalAlpha = p.alpha;
+          const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
+          fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
+          fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = fogGrad;
+          ctx.beginPath(); 
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
+          ctx.fill();
+        }
+        ctx.restore();
+      }; // <-- This cleanly ends the renderWeather function
+      // Draw ATTACHED weather first
+      for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
+      // Draw FOREGROUND (Branches render over attached snow)
+      drawForeground(now);
+      //  Draw UNATTACHED weather (Falling and landed snow render over the branches)
+      for (const p of weatherParticles) if (!p.attachedTo) renderWeather(p);
+      // Render Thunderstorm Lightning Flash over everything
+      if (lightningFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = lightningFlash * 0.6; 
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+        ctx.restore();
+      }
+      // === END WEATHER RENDERING ===
+      for(const gl of giantLeaves){
+      ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
+      ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
+      ctx.scale(gl.scale/100, gl.scale/100); 
+      ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 35); 
+      ctx.quadraticCurveTo(15, 10, 35, 15); 
+      ctx.quadraticCurveTo(20, -5, 45, -20); 
+      ctx.quadraticCurveTo(15, -15, 0, -55); 
+      ctx.quadraticCurveTo(-15, -15, -45, -20); 
+      ctx.quadraticCurveTo(-20, -5, -35, 15); 
+      ctx.quadraticCurveTo(-15, 10, 0, 35); 
+      ctx.fill(); ctx.stroke();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+      ctx.restore();
+    }
+      // Draw HUD absolutely last so weather never blocks hearts/tools
+      drawHudInCanvas();
+      
+      if(cine) drawCine(now);
+      if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
+      if (now < hitStopUntil) {
+        ctx.save();
+        ctx.globalAlpha = (hitStopUntil - now) / 150;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+        ctx.restore();
+      }
+    }
+  }
+  function drawHeists(now){
+    for(const h of heists){
+      const a = 1-(now-h.t)/900;
+      if(a<=0) continue;
+      ctx.save();
+      ctx.globalAlpha=a;
+      const R = 16 + 26*(1-a);
+      ctx.fillStyle='#fff3c4';
+      ctx.beginPath(); ctx.arc(h.x,h.y,7*(1-a*0.4),0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#ffd27a'; ctx.lineWidth=3.5;
+      for(let k=0;k<10;k++){
+        const an=k*Math.PI/5 + h.t/100;
+        const r1 = R*0.35, r2 = R*(k%2?0.75:1.05);
+        ctx.beginPath(); ctx.moveTo(h.x+Math.cos(an)*r1, h.y+Math.sin(an)*r1);
+        ctx.lineTo(h.x+Math.cos(an)*r2, h.y+Math.sin(an)*r2); ctx.stroke();
+      }
+      ctx.globalAlpha=a*0.5;
+      ctx.strokeStyle='#ff9d3c'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(h.x,h.y,R*1.15,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    if(heists.length>8) heists.splice(0, heists.length-8);
+  }
+  function drawRadarTrail(now){
+    if(now>=scanUntil) return;
+    for(const p of trail){
+      const a = Math.max(0, 1-(now-p.t)/1200);
+      if(a<=0.02) continue;
+      ctx.save(); ctx.globalAlpha = a*0.75;
+      ctx.translate(p.x,p.y);ctx.rotate(p.ang+Math.PI/2);
+      ctx.fillStyle='#ff5d6c';
+      ctx.beginPath(); ctx.ellipse(-4, 0, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4, 2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function updateToolButtons(){
+    $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
+    btnScan.disabled = charges.scan<=0 || state!=='play';
+    btnFrz.disabled = charges.freeze<=0 || state!=='play';
+    document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
+    document.getElementById('t-ernie').disabled = state!=='play';
+  }
+  function addScore(n){
+    score+=n; $s.textContent=score; scorePopAt=gameNow;
+    if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }$s.style.textShadow = '0 0 8px #39d98a';
+    setTimeout(()=>{ $s.style.textShadow=''; }, 300);
+  }
+  function grantTool(){
+    const which = Math.random()<0.6 ? 'scan' : 'freeze';
+    if(charges[which]>=MAXC){ addScore(25); flashTag('Tool cache full. +25 score instead.', '#39d98a'); return; }
+    charges[which]++; sfxSafe(()=>sfx.tool());
+    flashTag(`Clean catch. ${which.toUpperCase()} charge earned.`, '#39d98a');
+    updateToolButtons();
+  }
+  function maybeGrantErnie(){
+    if(streak>=6 && charges.ernie===0){
+      charges.ernie=1; sfxSafe(()=>sfx.tool()); setTimeout(()=>sfxSafe(()=>sfx.tool()),140);
+      flashTag('ERNIE IS ON THE FIELD. The golden button tags the saboteur for you.', '#ffd27a');
+      updateToolButtons();
+    }
+  }
+  function useErnie(){
+    if(charges.ernie<=0 || state!=='play' || !bugBug) return;
+    charges.ernie--; state='cine'; cine={t0:gameNow,b:bugBug,landed:false}; readUntil=0;
+    flashTag('Ernie has a suspect.', '#ffd27a'); bgmPlay('cine');updateToolButtons();
+  }
+  function drawCine(now){
+    const b=cine.b,elapsed=now-cine.t0;
+    ctx.save();ctx.fillStyle='rgba(3,8,15,.78)';ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight);
+    const x=Math.max(58,Math.min(cv.clientWidth-58,b.x)), y=Math.max(180,Math.min(cv.clientHeight-80,b.y));
+    const glow=ctx.createRadialGradient(x,y,10,x,y,125);glow.addColorStop(0,'rgba(255,213,118,.25)');glow.addColorStop(1,'rgba(255,213,118,0)');ctx.fillStyle=glow;ctx.fillRect(x-125,y-125,250,250);
+    const copy={...b,x,y};drawBug(copy,now);
+    const p=Math.max(0,Math.min(1,(elapsed-500)/650)), bounce=p===1?Math.sin((elapsed-1150)/65)*Math.exp(-(elapsed-1150)/180)*5:0;
+    const top=-110+(y+62)*p*p+bounce,bot=top+76;
+    ctx.lineJoin='round';ctx.shadowColor='#d5a545';ctx.shadowBlur=12;
+    const metal=ctx.createLinearGradient(x-46,0,x+46,0);metal.addColorStop(0,'#765426');metal.addColorStop(.35,'#fff0bc');metal.addColorStop(.55,'#b98a3a');metal.addColorStop(1,'#f5d888');
+    ctx.strokeStyle=metal;ctx.lineWidth=4;
+    ctx.beginPath();ctx.ellipse(x,top,43,13,0,0,Math.PI*2);ctx.stroke();
+    for(let k=-2;k<=2;k++){const bx=x+k*19;ctx.beginPath();ctx.moveTo(bx,top-10+Math.abs(k)*3);ctx.lineTo(bx,bot);ctx.stroke();}
+    ctx.beginPath();ctx.ellipse(x,bot,43,12,0,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;
+    if(elapsed>1150){const q=Math.min(1,(elapsed-1150)/650);ctx.globalAlpha=1-q;ctx.strokeStyle='#ffd27a';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y+30,45+q*65,12+q*22,0,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+    const label=elapsed<1150?'ERNIE ON THE CASE':'BUG CONTAINED';
+    ctx.fillStyle='#111b23';ctx.fillRect(20,96,cv.clientWidth-40,42);ctx.strokeStyle='#d5a545';ctx.lineWidth=1;ctx.strokeRect(20,96,cv.clientWidth-40,42);
+    ctx.fillStyle='#ffe5a2';ctx.textAlign='center';ctx.font='bold '+Math.min(19,(cv.clientWidth-56)/12)+'px Courier New';ctx.fillText(label,cv.clientWidth/2,122);
+    ctx.restore();
+  }
+  function useScan(){
+    if(charges.scan<=0 || state!=='play') return;
+    charges.scan--; scanUntil = gameNow+4200; sfxSafe(()=>sfx.tool());
+    flashTag('Radar: the saboteur leaves footprints. Follow the red trail.', '#39d98a');
+    updateToolButtons();
+  }
+  function useFreeze(){
+    if(charges.freeze<=0 || state!=='play') return;
+    charges.freeze--; freezeUntil = gameNow+2200; sfxSafe(()=>sfx.tool());
+    flashTag('Freeze: ants hold still for 2.2s. You can still tap your suspect.', '#4dc3ff');
+    updateToolButtons();
+  }
+  const lastToolAt={};
+  function toolGate(fn,name){ return e => { e.preventDefault(); const n=gameNow; if(n-(lastToolAt[name]||0)<500) return; lastToolAt[name]=n; fn(); }; }
+  btnScan.addEventListener('pointerdown', toolGate(useScan,'scan'));
+  btnFrz.addEventListener('pointerdown', toolGate(useFreeze,'freeze'));
+  document.getElementById('t-ernie').addEventListener('pointerdown', toolGate(useErnie,'ernie'));
+
+  function flashTag(txt,col,hold){
+    const changed=txt && txt!==tag.textContent;
+    tag.textContent=txt||'';tag.style.color=col||'';tag.style.display=txt?'block':'none';
+    tagUntil=txt?gameNow+3000:0;
+    if(changed && hold) readUntil=gameNow+1000; 
+  }
+
+  function startRound(){
+    spawn(); state='play'; transition=null; readUntil=0; updateToolButtons();
+    flashTag(anom && anom.hint ? (round===1 ? 'TUTORIAL: '+anom.hint : (round===2||round===3 ? anom.hint : '')) : '', '#ffb347', true);
+  }
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const l2 = (x2-x1)**2 + (y2-y1)**2;
+    if (l2 === 0) return Math.hypot(px-x1, py-y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+  }
+
+  let clickGuard=0;
+  cv.addEventListener('pointerdown', e=>{
+    if(state!=='play') return;
+    const rect=cv.getBoundingClientRect();
+    const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    
+    for (const gl of giantLeaves) {
+        const leafRadius = gl.scale * 0.4;
+        if (Math.hypot(x - gl.x, y - gl.y) < leafRadius) {
+            flashTag('Blocked by the leaf!', '#ffb347');
+            return; 
+        }
+    }
+
+    for (const f of overgrowth) {
+        if (f.type === 'branch') {
+            const x1 = f.x + Math.cos(f.ang)*(-f.len/2); 
+            const y1 = f.y + Math.sin(f.ang)*(-f.len/2);
+            const xMid = f.x - Math.sin(f.ang)*(f.curveY);
+            const yMid = f.y + Math.cos(f.ang)*(f.curveY);
+            const x2 = f.x + Math.cos(f.ang)*(f.len/2);  
+            const y2 = f.y + Math.sin(f.ang)*(f.len/2);
+            
+            if (distToSegment(x, y, x1, y1, xMid, yMid) < 16 || distToSegment(x, y, xMid, yMid, x2, y2) < 16) {
+                flashTag('Blocked by the wood!', '#ffb347'); return;
+            }
+            for (const sb of f.subBranches) {
+                const sx1 = f.x + Math.cos(f.ang)*sb.lx - Math.sin(f.ang)*sb.ly;
+                const sy1 = f.y + Math.sin(f.ang)*sb.lx + Math.cos(f.ang)*sb.ly;
+                const localEx = sb.lx + Math.cos(sb.ang)*sb.len;
+                const localEy = sb.ly + Math.sin(sb.ang)*sb.len;
+                const sx2 = f.x + Math.cos(f.ang)*localEx - Math.sin(f.ang)*localEy;
+                const sy2 = f.y + Math.sin(f.ang)*localEx + Math.cos(f.ang)*localEy;
+                if (distToSegment(x, y, sx1, sy1, sx2, sy2) < 10) {
+                    flashTag('Blocked by the wood!', '#ffb347'); return;
+                }
+            }
+        }
+    }
+    let inGrass=false;
+    for(const f of overgrowth){
+      if(f.type==='grass' && Math.hypot(x-f.x,y-f.y) < (f.r*1.6 + (f.spineLen||0)*0.35)){ inGrass=true; break; }
+    }
+    const pickR = inGrass ? 40 : 30;
+    let best=null,bd=1e9;
+    for(const b of bugs){ if(b.squished) continue; const d=(b.x-x)**2+(b.y-y)**2; if(d<bd){bd=d;best=b;} }
+    if(bugBug && !bugBug.squished){
+      const sd=(bugBug.x-x)**2+(bugBug.y-y)**2;
+      if(sd<24*24 || (inGrass && sd<pickR*pickR && best===bugBug)){ hitCorrect(bugBug); return; }
+    }
+    if(best && bd<pickR*pickR){
+      if(best===bugBug) hitCorrect(best); else hitWrong(best);
+    } else if(inGrass){
+      flashTag('Hidden in the grass.', '#5d7a6e');
+    } else {
+      streak=0;
+      flashTag('Empty ground. The saboteur is still moving.', '#5d7a6e');
+    }
+  });
+
+  function hitCorrect(b, skipErnie){
+    state='hit'; streak++;
+    b.hitAt = gameNow;
+    const tb = Math.max(0, Math.round((1-(gameNow-roundStart)/roundLen)*100));
+    let gain = 100 + tb + round*10;
+    const timeTaken = gameNow - roundStart;
+    if (timeTaken <= 3000) {
+      gain = Math.floor(gain * 1.5);
+      flashTag('\u26a1 QUICK DRAW! +50% SCORE', '#f0c14b');
+    }
+    hitStopUntil = gameNow + 150;
+    if(navigator.vibrate) navigator.vibrate(40);
+    addScore(gain);
+    sfxSafe(()=>sfx.catch());
+    if(!skipErnie) maybeGrantErnie();
+    captureFx={x:b.x,y:b.y,gain};
+    transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
+  }
+  function hitWrong(b){
+    lives--; streak=0; sfxSafe(()=>sfx.splat());
+    if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
+    if(b && !b.squished){ b.squished=true; b.carrying=false; splats.push({x:b.x, y:b.y}); }
+    $hearts.textContent = lives>0 ? '●'.repeat(lives) : '—';
+    flashTag(b ? 'SPLAT. That worker was honest. Now it is terrain.' : 'Not the saboteur.', '#ff5d6c');
+    if(lives<=0) gameOver();
+  }
+  function nextRound(){
+    if(state!=='hit') return;            
+    state='advance';
+    flashTag(anom.tag, '#ffb347');
+    transition={at:gameNow+1700,fn:()=>{
+      if(lives<=0){ state='over'; return; }
+      round++; $r.textContent=round;
+      if(round>1 && (round-1)%5===0 && lives<7){ 
+        lives++; sfxSafe(()=>sfx.extralife());
+        lifeFx = {t0: gameNow};
+        $hearts.textContent = '●'.repeat(lives);
+      }
+      startRound();
+      if(streak>=3) grantTool();
+    }};
+  }
+  function gameOver(){
+    transition=null;cine=null;lifeFx=null;updateToolButtons();
+    state='over'; bgmStop(); sfxSafe(()=>sfx.gameover());
+    banner.classList.remove('hide');
+    document.getElementById('btext').innerHTML =
+      `The colony fell.<br><br>ROUND ${round} · SCORE <b style="color:var(--accent)">${score}</b> · BEST <b>${hi}</b><br><br>`+
+      `<span style="color:var(--dim)">Every bug you missed here is one that ships anyway.<br>`+
+      `Finding them is a skill. It's also literally my job.</span>`;
+    document.getElementById('start').textContent='HUNT AGAIN';
+  }
+
+  (function(){
+    const t=document.getElementById('to-title');
+    if(t && window.parent && window.parent!==window){
+      t.style.display='inline-block';
+      t.onclick=e=>{e.preventDefault(); e.stopPropagation(); window.parent.postMessage('title','*');};
+    }
+  })();
+  document.getElementById('start').addEventListener('click', ()=>{
+    audioInit(); if(actx && actx.state==='suspended') actx.resume();
+    bgmStart();
+    banner.classList.add('hide');
+    round=1; score=0; lives=5; streak=0; lifeFx=null; transition=null; readUntil=0;
+    charges={scan:1, freeze:0, ernie:0};
+    giantLeaves = [];
+    weatherParticles = []; // Clears the sky on restart
+    lightningFlash = 0;    
+    wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
+    nextWindAt = gameNow + 15000;
+    updateToolButtons();
+    $r.textContent='1'; $s.textContent='0';$hearts.textContent='●'.repeat(5);
+    startRound();
+  });
+
+  let lastFrame=0, loopErrs=[];
+  try{ window.__stbErrs = loopErrs; window.addEventListener('error', e=>noteErr(e.message||e)); }catch(e){}
+  function frame(realNow){
+    lastFrame=performance.now();
+    const delta=Math.max(0,Math.min(realNow-realLast,100));realLast=realNow;
+    if(appAway) return;
+    const oldNow=gameNow; gameNow+=delta; const now=gameNow;
+    const held=Math.max(0,Math.min(now,readUntil)-oldNow);
+    const freezeHeld=(state==='play' && freezeUntil>oldNow)?Math.max(0,Math.min(now,freezeUntil)-oldNow):0;
+    if(state==='play' && held){roundStart+=held;scanUntil+=scanUntil>oldNow?held:0;freezeUntil+=freezeUntil>oldNow?held:0;for(const p of trail)p.t+=held;}
+    if(freezeHeld){roundStart+=freezeHeld;}
+    try{
+      if(tagUntil && now>=tagUntil){tag.style.display='none';tagUntil=0;}
+      if(transition && now>=transition.at){const cb=transition.fn;transition=null;cb();}
+      if(state==='cine' && cine){
+        if(!cine.landed && now-cine.t0>=1150){cine.landed=true;tone(70,.28,'square',.1);tone(210,.12,'sawtooth',.07);}
+        if(now-cine.t0>=2800){const b=cine.b;roundStart+=now-cine.t0;cine=null;bgmStart();hitCorrect(b,true);}
+      }
+      if(state==='play'){
+        if(now-roundStart>roundLen){
+          lives--;streak=0;sfxSafe(()=>sfx.timeout());
+          $hearts.textContent=lives>0?'●'.repeat(lives):'—';
+          if(lives<=0) gameOver();
+          else {flashTag("Time's up. It got away.",'#ff5d6c');state='hit';updateToolButtons();keepGarden=true;transition={at:now+1500,fn:startRound};}
+        }else if(now>=readUntil){update((delta-held)/1000,now);}
+      }
+      if(!ctxLost) draw(now);
+    }catch(e){noteErr(e);}
+  }
+
+  let ctxLost=false;
+  noteErr.lastShown='';
+  function noteErr(e){
+    const msg=(''+(e&&e.message||e)).slice(0,120);
+    if(loopErrs.length<10) loopErrs.push(msg);
+    if(msg && msg!==noteErr.lastShown){ noteErr.lastShown=msg; flashTag('ERR '+msg, '#ff5d6c'); }
+  }
+  cv.addEventListener('contextlost', e=>{ ctxLost=true; e.preventDefault(); });
+  cv.addEventListener('contextrestored', ()=>{ ctxLost=false; });
+  function loop(now){ frame(now); requestAnimationFrame(loop); }
+  setInterval(()=>{ if(!appAway && performance.now()-lastFrame>350) frame(performance.now()); },120);
+  fit(); updateToolButtons(); flashTag('');
+  if(location.hash.includes('testhook')) window.__dbg = ()=>({bugs,bugBug,anom,state,round,score,charges,delivered,hi,errs:loopErrs,addScore,trail,useErnie});
+  if(location.hash.includes('testhook')){ window.__stb_test = { setCharges:c=>{charges={...charges,...c};updateToolButtons();}, forceStreak:n=>{streak=n;}, getStreak:()=>streak, spawnNow:startRound, getPebbles:()=>pebbles, getHeists:()=>heists, setHeistT:v=>{heistT=v;}, getHeistT:()=>heistT, getBB:()=>({x:bugBug.x,y:bugBug.y,phase:bugBug.phase,boost:!!bugBug._boost,anom:anom.id}), forceLife:()=>{ lives++; lifeFx={t0:gameNow}; $hearts.textContent='●'.repeat(lives); }, getLives:()=>lives, getLifeFx:()=>lifeFx, setAnom:id=>{anom=anomalies.find(a=>a.id===id);},
+    snapshot:()=>({gameNow,roundStart,roundLen,readUntil,scanUntil,freezeUntil,bgmMode,audio:actx&&actx.state,appAway,cine:!!cine,transition:!!transition,tag:tag.textContent}),
+    setAway, useScan,useFreeze,useErnie,hitCorrect,hitWrong,flashTag,update,draw,obstacles,
+    setRound:n=>{round=n;startRound();}, clearPause:()=>{readUntil=0;},
+    setSplats:a=>{splats=a;}, getSplats:()=>splats,
+    endpoints:()=>({nestX,nestY,sugarX,sugarY}),setTime:n=>{gameNow=n;},frame,
+    gameOver }; }
+  if(location.hash.includes('test2')){round=2;banner.classList.add('hide');startRound();}
+  requestAnimationFrame(t=>{realLast=t; loop(t);});
+})();
+</script>
+</body>
+</html>
+
