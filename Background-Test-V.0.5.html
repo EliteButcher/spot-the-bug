@@ -516,7 +516,7 @@
         const spineLen = r * (3.0 + Math.random() * 2); 
         const spineCurve = (Math.random() - 0.5) * r * 3.5;         
         // Boosted density to pack the shape without needing a second render pass
-        const numBlades = Math.floor(350 + Math.random() * 150);         
+        const numBlades = Math.floor(350 + Math.random() * 200);   // Increase Math.random() * 150 for denser grass. Starting value of 150      
         for(let k=0; k<numBlades; k++){ 
           const t = (Math.random() + Math.random()) / 2; 
           const sx = (t - 0.5) * spineLen;
@@ -1509,7 +1509,7 @@
           if(ant.squished) continue;
           const dist = Math.hypot(ant.x - wx, ant.y - wy);
           if(dist < 28) { 
-            bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
+            bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 1.4; // Increase ) * 0.9; for more bend. Starting value of 0.9
             partAlpha = 0.4; // Aggressive transparency drop so ants are never lost
           }
         }
