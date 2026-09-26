@@ -1534,7 +1534,7 @@ function spawn(){
     ctx.restore();
   }
 
- function drawForeground(now){
+function drawForeground(now){
     for(const f of overgrowth){
       ctx.save(); ctx.translate(f.x, f.y);
       
@@ -1542,8 +1542,8 @@ function spawn(){
         ctx.lineCap = 'round';
         
         for(const b of f.blades){
-          let bend = wind.vx * f.flex; // Apply seasonal wind resistance
-          let partAlpha = f.baseAlpha; // Apply seasonal natural opacity
+          let bend = wind.vx * f.flex; 
+          let partAlpha = f.baseAlpha; 
           const wx = f.x + b.ox, wy = f.y + b.oy;
 
           for(const ant of bugs) {
@@ -1551,7 +1551,7 @@ function spawn(){
             const dist = Math.hypot(ant.x - wx, ant.y - wy);
             if(dist < 28) { 
               bend -= Math.sign(ant.x - wx) * ((28 - dist) / 28) * 0.9; 
-              partAlpha = f.ghostAlpha; // Apply seasonal ant footprint ghosting
+              partAlpha = f.ghostAlpha; 
             }
           }
 
@@ -1629,7 +1629,6 @@ function spawn(){
       ctx.restore();
     }
     
-    // Giant Leaves Logic Remains Untouched
     for(const gl of giantLeaves){
       ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
       ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
@@ -1653,7 +1652,100 @@ function spawn(){
       ctx.restore();
     }
   }
-      // Draw HUD absolutely last so weather never blocks hearts/tools
+
+  function draw(now){
+    document.getElementById('frame').classList.toggle('cinematic',state==='cine');
+    if(!lifeFx)document.getElementById('celebrate').style.display='none';
+    drawDecor();
+    if(['play','hit','cine','advance'].includes(state)){
+      drawRadarTrail(now);
+      drawSplats();
+      drawHeists(now);
+      for(const b of bugs) if(!b.squished) drawBug(b, now);
+      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
+      
+      const renderWeather = (p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+       if (p.type === 'snow') {
+          ctx.globalAlpha = p.alpha;
+          if (p.scale > 2.2 && !p.landed && !p.attachedTo) {
+            ctx.rotate(p.ang); 
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = p.scale * 0.3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            for(let k=0; k<6; k++) {
+              ctx.moveTo(0,0);
+              ctx.lineTo(Math.cos(k*Math.PI/3)*p.scale*1.8, Math.sin(k*Math.PI/3)*p.scale*1.8);
+            }
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        else if (p.type === 'rain' || p.type === 'storm') {
+          ctx.globalAlpha = p.alpha;
+          ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
+          ctx.stroke();
+        } 
+        else if (p.type === 'splash') {
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        else if (p.type === 'autumn') {
+          ctx.globalAlpha = p.alpha; 
+          ctx.rotate(p.ang);
+          ctx.scale(p.scale, p.scale);
+          ctx.shadowColor = 'rgba(0,0,0,0.4)';
+          ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
+          ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
+          ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
+          ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
+          ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
+          ctx.shadowColor = 'transparent'; ctx.stroke();
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
+        } 
+        else if (p.type === 'fog') {
+          ctx.globalAlpha = p.alpha;
+          const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
+          fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
+          fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = fogGrad;
+          ctx.beginPath(); 
+          ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
+          ctx.fill();
+        }
+        ctx.restore();
+      }; 
+      
+      for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
+      drawForeground(now);
+      for (const p of weatherParticles) if (!p.attachedTo) renderWeather(p);
+      
+      if (lightningFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = lightningFlash * 0.6; 
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+        ctx.restore();
+      }
+
       drawHudInCanvas();
       
       if(cine) drawCine(now);
