@@ -403,7 +403,7 @@
   function speed(){ return 26 + round*5; }
   function roundSeconds(){ return Math.max(26 - Math.floor(round/2), 14); }
 
-  function spawn(){
+function spawn(){
     bugs=[]; delivered=0; obstacleCache=null;
     const pool = round===1 ? ['idle'] : round===2 ? ['idle','steal','fast'] : anomalies.map(a=>a.id);
     const pi = Math.min(Math.floor(Math.random()*pool.length), pool.length-1);
@@ -415,32 +415,38 @@
     const Wv = cv.clientWidth, Hv = cv.clientHeight;
     const fabZone = (x,y)=> x < 118 && y > Hv/2-125 && y < Hv/2+125;
     
+    // 1. Calculate the theme and season FIRST (Only declared once!)
+    const ti = (round - 1) % themes.length;
+    let currentSeason = 'summer';
+    if (ti === 0) currentSeason = 'winter'; // Snow Blanket
+    else if ([1, 6, 7].includes(ti)) currentSeason = 'spring'; // Rain, Overcast, Summer Spring
+    else if ([3, 4].includes(ti)) currentSeason = 'fall'; // Fog, Autumn Wind
+    
     if(!keepGarden || !pebbles.length){
       nestX = 90 + Math.random()*(Wv-180);
       sugarX = 90 + Math.random()*(Wv-180);
       nestY = 92; sugarY = Hv-52;
       rollPebbles();
-      rollOvergrowth();
+      // Pass the calculated season into the generator
+      rollOvergrowth(currentSeason); 
     }
     keepGarden=false;
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
-    weatherParticles=[]; lightningFlash=0; // Wipes the old weather instantly
+    weatherParticles=[]; lightningFlash=0; 
     
-    const ti = (round - 1) % themes.length;
-    if (ti === 1 || ti === 2) { // Rain or Storm
+    // 2. Puddle generation (Uses the previously declared `ti`)
+    if (ti === 1 || ti === 2) { 
       let px, py, pr, valid = false, tries = 0;
       
       while (!valid && tries < 40) {
-        pr = 90 + Math.random() * 60; // Max radius
+        pr = 90 + Math.random() * 60; 
         px = 100 + Math.random() * (Wv - 200);
         py = 150 + Math.random() * (Hv - 300);
         valid = true;        
-        // Check Rocks so puddle edge cannot touch the rock edge at all
         for (const pb of pebbles) {
           if (Math.hypot(px - pb.x, py - pb.y) < pb.r + pr + 15) { valid = false; break; }
         }        
-        // Check Grass: 20% overlap at max growth (distance must be > grass radius + 80% of puddle radius)
         if (valid) {
           for (const f of overgrowth) {
             if (f.type === 'grass' && Math.hypot(px - f.x, py - f.y) < f.r + pr * 0.8) { 
@@ -450,7 +456,6 @@
         }
         tries++;
       }      
-      // Only create the puddle if a safe spot was actually found
       if (valid) {
         puddle = { x: px, y: py, r: 0, maxR: pr, growth: ti === 2 ? 3 : 1.5 };
       } else {
@@ -499,54 +504,85 @@
     }
   }
 
-  function rollOvergrowth(){
+ function rollOvergrowth(season = 'summer'){
     overgrowth=[]; giantLeaves=[];
     const Wv = cv.clientWidth, Hv = cv.clientHeight;
     const numGrass = 2 + Math.floor(Math.random()*2);
+    
     for(let i=0; i<numGrass; i++){
       for(let tries=0; tries<40; tries++){
         const r = 40 + Math.random()*20; 
         const x = 40 + r + Math.random()*(Wv - 80 - 2*r);
         const y = 90 + r + Math.random()*(Hv - 180 - 2*r);        
         const clearOfPebbles = pebbles.every(p => Math.hypot(x-p.x, y-p.y) > p.r + r);
-     // Bumped base avoidance to 230 to account for the massive spine lengths
-      if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
-        let blades = [];        
-        const spineAngle = Math.random() * Math.PI * 2;
-        const spineLen = r * (3.0 + Math.random() * 2); 
-        const spineCurve = (Math.random() - 0.5) * r * 3.5;         
-        // Boosted density to pack the shape without needing a second render pass
-        const numBlades = Math.floor(800 + Math.random() * 200);   // Increase (800 + Math.random() * 200);for denser grass. Starting value of 350+ & *150      
-        for(let k=0; k<numBlades; k++){ 
-          const t = (Math.random() + Math.random()) / 2; 
-          const sx = (t - 0.5) * spineLen;
-          const sy = Math.sin(t * Math.PI) * spineCurve;          
-          const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
-          const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
-          const ang = Math.random() * Math.PI * 2;          
-          const lx = sx + Math.cos(ang) * scatter;
-          const ly = sy + Math.sin(ang) * scatter;          
-          const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
-          const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);          
-          // BLADE-LEVEL CULLING: Safely deletes any individual blade that touches the nest or sugar
-          if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
-          if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
-          blades.push({
-            ox: ox,
-            oy: oy,
-            an: -Math.PI/2 + (Math.random()-0.5)*0.8,
-            len: r * (0.3 + Math.random()*0.8),
-            hue: 65 + Math.random()*40, // Keeping your current Summer hues
-            sat: 50,                    // PREP FOR PHASE 2: Added saturation baseline
-            lum: 20 + Math.random()*30, // Keeping your current Summer luminosity
-            sway: Math.random()*Math.PI*2
-          });
-        }        
-        overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
-        break;
-      }
+        
+        if(Math.hypot(x-nestX, y-nestY) > 230 && Math.hypot(x-sugarX, y-sugarY) > 230 && clearOfPebbles){
+          let blades = [];        
+          const spineAngle = Math.random() * Math.PI * 2;
+          const spineLen = r * (3.0 + Math.random() * 2); 
+          const spineCurve = (Math.random() - 0.5) * r * 3.5;         
+          // Restored the dense 800+ blade count
+          const numBlades = Math.floor(800 + Math.random() * 200);         
+          
+          for(let k=0; k<numBlades; k++){ 
+            const t = (Math.random() + Math.random()) / 2; 
+            const sx = (t - 0.5) * spineLen;
+            const sy = Math.sin(t * Math.PI) * spineCurve;          
+            const taper = Math.pow(Math.sin(t * Math.PI), 0.5); 
+            const scatter = (Math.random() - 0.5) * (r * 2.2) * taper; 
+            const ang = Math.random() * Math.PI * 2;          
+            const lx = sx + Math.cos(ang) * scatter;
+            const ly = sy + Math.sin(ang) * scatter;          
+            const ox = lx * Math.cos(spineAngle) - ly * Math.sin(spineAngle);
+            const oy = lx * Math.sin(spineAngle) + ly * Math.cos(spineAngle);          
+            
+            if (Math.hypot(x + ox - nestX, y + oy - nestY) < 110) continue;
+            if (Math.hypot(x + ox - sugarX, y + oy - sugarY) < 110) continue;
+            
+            let bHue, bSat, bLum, bLen;
+            if (season === 'spring') {
+              bHue = 90 + Math.random() * 30;  
+              bSat = 70 + Math.random() * 20;  
+              bLum = 35 + Math.random() * 25;  
+              bLen = r * (0.4 + Math.random() * 0.9); 
+            } 
+            else if (season === 'fall') {
+              bHue = 40 + Math.random() * 40;  
+              bSat = 35 + Math.random() * 25;  
+              bLum = 25 + Math.random() * 20;  
+              bLen = r * (0.3 + Math.random() * 0.7); 
+            } 
+            else if (season === 'winter') {
+              if (Math.random() < 0.6) continue;              
+              bHue = 35 + Math.random() * 15;  
+              bSat = 15 + Math.random() * 15;  
+              bLum = 40 + Math.random() * 20;  
+              bLen = r * (0.15 + Math.random() * 0.3); 
+            } 
+            else {
+              bHue = 65 + Math.random() * 40;  
+              bSat = 50;                       
+              bLum = 20 + Math.random() * 30;  
+              bLen = r * (0.3 + Math.random() * 0.8); 
+            }
+            
+            blades.push({
+              ox: ox,
+              oy: oy,
+              an: -Math.PI/2 + (Math.random()-0.5)*0.8,
+              len: bLen,
+              hue: bHue,
+              sat: bSat,
+              lum: bLum,
+              sway: season === 'winter' ? 0 : Math.random()*Math.PI*2 
+            });
+          }        
+          overgrowth.push({ type: 'grass', x, y, r, blades, spineAngle, spineLen, spineCurve });
+          break;
+        }
       }
     }
+    
     for(let tries=0; tries<40; tries++){
       const x = 100 + Math.random()*(Wv - 200);
       const y = 150 + Math.random()*(Hv - 300);
@@ -742,7 +778,7 @@
         wind.vx = wind.targetVx * wind.intensity;
         for(const b of bugs) {
             if(!b.squished) {
-                b.x += wind.vx * wind.intensity * dt * 1.5; 
+                b.x += wind.vx * wind.intensity * dt * 1.2; // Lower to reduce how hard ants are pushed. 1.5 default starting value
                 b.y += Math.sin(now/200 + b.x) * wind.intensity * dt * 5; 
             }
         }
@@ -765,7 +801,7 @@
     } else {
       const inten = Number(wind.intensity)||0;
       const tvx = Number(wind.targetVx)||0;
-      wind.intensity = Math.max(0, inten - dt * 0.5);
+      wind.intensity = Math.max(0, inten - dt * 0.4); // Increase to make sliding effect die off faster
       wind.vx = tvx * wind.intensity;
     }
 
