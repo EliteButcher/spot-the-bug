@@ -1770,7 +1770,32 @@ function rollOvergrowth(season = 'summer'){
       drawHudInCanvas();
       
       if(cine) drawCine(now);
-      if(captureFx){ctx.save();ctx.fillStyle='#39d98a';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText('CAUGHT +'+captureFx.gain,Math.max(70,Math.min(cv.clientWidth-70,captureFx.x)),Math.max(110,captureFx.y-36));ctx.restore();}
+      for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        let elapsed = now - ft.t;
+        if (elapsed > ft.life) { floatingTexts.splice(i, 1); continue; }
+        
+        let p = elapsed / ft.life; // Tracks from 0.0 to 1.0 over the text's lifespan
+        let currentY = ft.y - (p * 40); // Smoothly floats upward by 40 pixels
+        let popScale = ft.scale * (1 + Math.sin(p * Math.PI) * 0.3); // Expands then settles
+        let alpha = 1 - Math.pow(p, 3); // Stays solid long enough to read, then fades fast
+        
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(ft.x, Math.max(100, currentY - 36));
+        ctx.scale(popScale, popScale);
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 15px Courier New';
+        
+        // Heavy black outline guarantees it pops against visually noisy weather/grass
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = 4;
+        ctx.strokeText(ft.text, 0, 0);
+        
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, 0, 0);
+        ctx.restore();
+      }();}
       if (now < hitStopUntil) {
         ctx.save();
         ctx.globalAlpha = (hitStopUntil - now) / 150;
@@ -1980,14 +2005,34 @@ function rollOvergrowth(season = 'summer'){
     if(navigator.vibrate) navigator.vibrate(40);
     addScore(gain);
     sfxSafe(()=>sfx.catch());
-    if(!skipErnie) maybeGrantErnie();
-    captureFx={x:b.x,y:b.y,gain};
+    if(!skipErnie) maybeGrantErnie();    
+    // Determine color and size based on Quick Draw
+    const isCrit = timeTaken <= 3000;
+    floatingTexts.push({
+      x: b.x, y: b.y, 
+      text: isCrit ? '⚡ QUICK +' + gain : 'CAUGHT +' + gain, 
+      color: isCrit ? '#f0c14b' : '#39d98a',
+      t: gameNow, life: 1200, scale: isCrit ? 1.4 : 1.0
+    });
+    
     transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
   }
   function hitWrong(b){
     lives--; streak=0; sfxSafe(()=>sfx.splat());
     if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
-    if(b && !b.squished){ b.squished=true; b.carrying=false; splats.push({x:b.x, y:b.y}); }
+   if(b && !b.squished){ 
+      b.squished=true; b.carrying=false; splats.push({x:b.x, y:b.y}); 
+      floatingTexts.push({
+        x: b.x, y: b.y, text: '❌ SPLAT', color: '#ff5d6c',
+        t: gameNow, life: 1000, scale: 1.5
+      });
+    } else if(!b) {
+      floatingTexts.push({
+        x: cv.clientWidth / 2, y: cv.clientHeight / 2, text: 'MISS!', color: '#ff5d6c',
+        t: gameNow, life: 800, scale: 1.2
+      });
+    }
+    
     $hearts.textContent = lives>0 ? '●'.repeat(lives) : '—';
     flashTag(b ? 'SPLAT. That worker was honest. Now it is terrain.' : 'Not the saboteur.', '#ff5d6c');
     if(lives<=0) gameOver();
