@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>⚠ TEST FILE — Background Test V0.1 (NOT A RELEASE)</title>
+<title>⚠ TEST FILE — Background Test V0.5 (NOT A RELEASE)</title>
 <style>
   :root{
     --bg:#0a0e12; --panel:#101820; --ink:#c9e4d8; --dim:#5d7a6e;
@@ -444,11 +444,13 @@ function spawn(){
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
     weatherParticles=[]; lightningFlash=0; 
+    floatingTexts=[]; giantLeaves=[]; 
+    wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
+    nextWindAt = gameNow + 15000 + Math.random() * 10000;
     
     // 2. Puddle generation (Uses the previously declared `ti`)
     if (ti === 1 || ti === 2) { 
       let px, py, pr, valid = false, tries = 0;
-      
       while (!valid && tries < 40) {
         pr = 90 + Math.random() * 60; 
         px = 100 + Math.random() * (Wv - 200);
@@ -1502,18 +1504,22 @@ function rollOvergrowth(season = 'summer'){
         const len = 7 + (k%3)*3;
         ctx.beginPath(); ctx.moveTo(Math.cos(an)*5, Math.sin(an)*4); ctx.lineTo(Math.cos(an)*len, Math.sin(an)*len); ctx.stroke();
       }
-      ctx.restore();
+     ctx.restore();
     }
   }
   function drawHudInCanvas(){
     const Wv=cv.clientWidth;
     
-    // Smooth Score Ticker (Moved here so it updates during hit pauses!)
+    // Smooth Score Ticker (Tied directly to the CSS Pop!)
     if (displayScore < score) {
         displayScore += Math.max(1, Math.floor((score - displayScore) * 0.1));
         $s.textContent = displayScore;
+        $s.style.transform = 'scale(1.4)';
+        $s.style.color = '#f0c14b'; // Turns gold while adding
+    } else {
+        $s.style.transform = 'scale(1)';
+        $s.style.color = 'var(--accent)';
     }
-
     if(lifeFx){
       const el = gameNow-lifeFx.t0;
       if(el > 2000){ lifeFx = null; document.getElementById('celebrate').style.display='none'; }
@@ -1904,6 +1910,8 @@ function rollOvergrowth(season = 'summer'){
     btnFrz.disabled = charges.freeze<=0 || state!=='play' || freezeUntil > gameNow;
     document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
     document.getElementById('t-ernie').disabled = state!=='play';
+  }
+
   function addScore(n){
     score+=n; scorePopAt=gameNow;
     if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }$s.style.textShadow = '0 0 8px #39d98a';
