@@ -2084,8 +2084,8 @@ function rollOvergrowth(season = 'summer'){
       flashTag('\u26a1 QUICK DRAW! +50% SCORE', '#f0c14b');
     }
     
-    // The Combo Multiplier Split
-    let multi = Math.max(1, streak);
+   // The Combo Multiplier Split (Starts at 3x)
+    let multi = streak >= 3 ? streak : 1;
     let totalGain = baseGain * multi;
     let bonusGain = totalGain - baseGain;
 
@@ -2099,7 +2099,8 @@ function rollOvergrowth(season = 'summer'){
     const $stkBadge = document.getElementById('stk-badge');
     const $stk = document.getElementById('stk');
     if ($stkBadge &&$stk) {
-      if (streak >= 2) {
+      // Changed to 3 so badge and combo start together
+      if (streak >= 3) {
         $stkBadge.style.display = 'inline-block';$stk.textContent = streak;
         // Shift colors based on heat tier
         $stkBadge.style.color = streak < 4 ? '#ffb347' : (streak < 7 ? '#ff7e47' : '#ff5d6c');
@@ -2114,13 +2115,13 @@ function rollOvergrowth(season = 'summer'){
     // 1. Pure Action Feedback (Right over the bug)
     floatingTexts.push({
       x: b.x, y: b.y, 
-      text: isCrit ? '⚡ QUICK +' + baseGain : 'CAUGHT +' + baseGain, 
+      text: isCrit ? (streak >= 3 ? `⚡ QUICK x${streak} +${baseGain}` : `⚡ QUICK +${baseGain}`) : 'CAUGHT +' + baseGain, 
       color: isCrit ? '#f0c14b' : '#39d98a',
       t: gameNow, life: 1200, scale: isCrit ? 1.3 : 1.0
     });
 
-    // 2. The Psychological Combo Reward (Center screen pop)
-    if (streak >= 2) {
+    // 2. The Psychological Combo Reward (Center screen pop starts at 3x)
+    if (streak >= 3) {
       floatingTexts.push({
         x: cv.clientWidth / 2, y: cv.clientHeight * 0.4, 
         text: `🔥 x${streak} COMBO BONUS! (+${bonusGain})`, 
