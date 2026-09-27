@@ -1103,19 +1103,15 @@ function rollOvergrowth(season = 'summer'){
   // === END WEATHER PHYSICS ===
     const left = 1-(now-roundStart)/roundLen;
     if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
-    // Smooth Score Ticker
-    if (displayScore < score) {
-        displayScore += Math.max(1, Math.floor((score - displayScore) * 0.1));
-        $s.textContent = displayScore;
-    }    
     $timebar.style.width = (Math.max(left,0)*100)+'%';
-    $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';    
-    // Heartbeat Pulse when time is low
+    $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
+    
+    // Heartbeat Pulse when time is low for the HTML bar (desktop)
     const $barwrap = document.getElementById('barwrap');
     if (left < 0.3 && state === 'play') {
-        $barwrap.classList.add('danger-pulse');
+        $barwrap.style.boxShadow = Math.floor(now/150)%2===0 ? '0 0 10px rgba(255,93,108,0.8)' : 'none';
     } else {
-        $barwrap.classList.remove('danger-pulse');
+        $barwrap.style.boxShadow = 'none';
     }
     
     if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
@@ -1487,9 +1483,15 @@ function rollOvergrowth(season = 'summer'){
       ctx.restore();
     }
   }
-
   function drawHudInCanvas(){
     const Wv=cv.clientWidth;
+    
+    // Smooth Score Ticker (Moved here so it updates during hit pauses!)
+    if (displayScore < score) {
+        displayScore += Math.max(1, Math.floor((score - displayScore) * 0.1));
+        $s.textContent = displayScore;
+    }
+
     if(lifeFx){
       const el = gameNow-lifeFx.t0;
       if(el > 2000){ lifeFx = null; document.getElementById('celebrate').style.display='none'; }
@@ -1508,13 +1510,30 @@ function rollOvergrowth(season = 'summer'){
     }
     ctx.font='bold 15px Courier New'; ctx.textAlign='left'; ctx.fillStyle='#ff5d6c';
     if(lives>0){for(let i=0;i<lives;i++)ctx.fillText('●',10+i*19,26);}else ctx.fillText('—',10,26);
+    
+    // Delivered Crumb Counter for Mobile Canvas HUD
+    ctx.fillStyle = '#ffb347';
+    ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'right';
+    ctx.fillText('DELIVERED ' + delivered, Wv - 10, 25);
+
     const left = state==='play' ? Math.max(0, 1-(gameNow-roundStart)/roundLen) : (state==='hit'?0:1);
+    
+    // Heartbeat Pulse Logic for Canvas HUD
+    const isDanger = left < 0.3 && state === 'play';
+    const pulseOn = isDanger && Math.floor(gameNow / 150) % 2 === 0;
+
+    if (pulseOn) {
+      ctx.shadowColor = 'rgba(255, 93, 108, 0.8)';
+      ctx.shadowBlur = 10;
+    }    
     ctx.fillStyle='#0a1210'; ctx.fillRect(10, 34, Wv-20, 8);
-    ctx.fillStyle = left<0.3 ? '#ff5d6c' : '#39d98a';
+    ctx.fillStyle = isDanger ? (pulseOn ? '#ff5d6c' : '#7a1b24') : '#39d98a';
     ctx.fillRect(10, 34, (Wv-20)*left, 8);
+    
+    ctx.shadowBlur = 0; // Reset shadow
     ctx.textAlign='start';
   }
-
   function drawWindStreaks(now, Wv, Hv){
     const inten = Number(wind.intensity)||0;
     const tvx = Number(wind.targetVx)||0;
@@ -2155,13 +2174,24 @@ function rollOvergrowth(season = 'summer'){
     try{
       if(tagUntil && now>=tagUntil){tag.style.display='none';tagUntil=0;}
       if(transition && now>=transition.at){const cb=transition.fn;transition=null;cb();}
-      if(state==='cine' && cine){
+     if(state==='cine' && cine){
         if(!cine.landed && now-cine.t0>=1150){cine.landed=true;tone(70,.28,'square',.1);tone(210,.12,'sawtooth',.07);}
         if(now-cine.t0>=2800){const b=cine.b;roundStart+=now-cine.t0;cine=null;bgmStart();hitCorrect(b,true);}
       }
       if(state==='play'){
         if(now-roundStart>roundLen){
-          lives--;streak=0;sfxSafe(()=>sfx.timeout());
+          lives--; streak=0; sfxSafe(()=>sfx.timeout());
+          
+          // Force hide the streak badge on time out
+          if (document.getElementById('stk-badge')) document.getElementById('stk-badge').style.display = 'none';
+          
+          // Shatter Feedback for Time Out
+          floatingTexts.push({
+            x: cv.clientWidth / 2, y: cv.clientHeight * 0.35, 
+            text: `⌛ TIME OUT!`, color: '#ff5d6c',
+            t: gameNow, life: 2200, scale: 2.2
+          });
+
           $hearts.textContent=lives>0?'●'.repeat(lives):'—';
           if(lives<=0) gameOver();
           else {flashTag("Time's up. It got away.",'#ff5d6c');state='hit';updateToolButtons();keepGarden=true;transition={at:now+1500,fn:startRound};}
