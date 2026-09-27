@@ -39,11 +39,14 @@
     padding:6px 14px 4px; border-bottom:1px solid #1d2b26;
     display:flex; align-items:center; gap:12px;
   }
-  #hearts{font-size:18px; letter-spacing:3px; color:var(--bad); min-width:74px}
+ #hearts{font-size:18px; letter-spacing:3px; color:var(--bad); min-width:74px}
   #hearts.empty{color:#3a2b30}
-  #barwrap{flex:1; height:10px; background:#0a1210; border:1px solid #1d2b26; border-radius:3px; overflow:hidden}
-  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear}
-  #crumbs{font-size:12px; color:var(--warn); min-width:88px; text-align:right}
+  #barwrap{flex:1; height:10px; background:#0a1210; border:1px solid #1d2b26; border-radius:3px; overflow:hidden; transition: border-color 0.2s, box-shadow 0.2s;}
+  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear, background-color 0.2s;}
+  .danger-pulse { animation: pulseBar 0.5s infinite; border-color: var(--bad) !important; }
+  @keyframes pulseBar { 0% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(255, 93, 108, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0); } }
+  #crumbs{font-size:10px; color:var(--dim); min-width:88px; text-align:right}
+  #s { display: inline-block; font-size: 18px; color: var(--accent); text-shadow: 0 0 4px rgba(57, 217, 138, 0.3); font-weight: 900; transition: transform 0.1s ease-out; }
   #tools{
     padding:6px 14px; border-bottom:1px solid #1d2b26;
     display:flex; gap:10px; align-items:center;
@@ -374,7 +377,7 @@
   ];
 
   let state='menu';
-  let round=1, score=0, lives=5, streak=0, scorePopAt=0;
+  let round=1, score=0, displayScore=0, lives=5, streak=0, scorePopAt=0;
   let lifeFx = null; 
   function firstTouch(){ audioWake(); if(state==='menu' && bgmMode!=='menu') bgmPlay('menu'); }
   document.addEventListener('pointerdown',firstTouch);
@@ -1100,8 +1103,21 @@ function rollOvergrowth(season = 'summer'){
   // === END WEATHER PHYSICS ===
     const left = 1-(now-roundStart)/roundLen;
     if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
+    // Smooth Score Ticker
+    if (displayScore < score) {
+        displayScore += Math.max(1, Math.floor((score - displayScore) * 0.1));
+        $s.textContent = displayScore;
+    }    
     $timebar.style.width = (Math.max(left,0)*100)+'%';
-    $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
+    $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';    
+    // Heartbeat Pulse when time is low
+    const $barwrap = document.getElementById('barwrap');
+    if (left < 0.3 && state === 'play') {
+        $barwrap.classList.add('danger-pulse');
+    } else {
+        $barwrap.classList.remove('danger-pulse');
+    }
+    
     if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
   }
   let obstacleCache=null;
@@ -1845,14 +1861,15 @@ function rollOvergrowth(season = 'summer'){
   function updateToolButtons(){
     $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
     btnScan.disabled = charges.scan<=0 || state!=='play';
-    btnFrz.disabled = charges.freeze<=0 || state!=='play';
+   btnFrz.disabled = charges.freeze<=0 || state!=='play';
     document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
     document.getElementById('t-ernie').disabled = state!=='play';
   }
   function addScore(n){
-    score+=n; $s.textContent=score; scorePopAt=gameNow;
-    if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }$s.style.textShadow = '0 0 8px #39d98a';
-    setTimeout(()=>{ $s.style.textShadow=''; }, 300);
+    score+=n; scorePopAt=gameNow;
+    if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }
+    $s.style.transform = 'scale(1.4)';
+    setTimeout(()=>{ $s.style.transform = 'scale(1)'; }, 100);
   }
   function grantTool(){
     const which = Math.random()<0.6 ? 'scan' : 'freeze';
@@ -2112,7 +2129,7 @@ function rollOvergrowth(season = 'summer'){
     audioInit(); if(actx && actx.state==='suspended') actx.resume();
     bgmStart();
     banner.classList.add('hide');
-    round=1; score=0; lives=5; streak=0; lifeFx=null; transition=null; readUntil=0;
+    round=1; score=0; displayScore=0; lives=5; streak=0; lifeFx=null; transition=null; readUntil=0;
     charges={scan:1, freeze:0, ernie:0};
     giantLeaves = [];
     weatherParticles = []; // Clears the sky on restart
