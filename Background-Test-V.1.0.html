@@ -1117,35 +1117,23 @@ function rollOvergrowth(season = 'summer'){
   // === END WEATHER PHYSICS ===
     const left = 1-(now-roundStart)/roundLen;
     if(state==='play' && left<0.28 && Math.floor(left*10)!==lastTick){ lastTick=Math.floor(left*10); sfxSafe(()=>sfx.tick()); }
+// -------------------------
+// start here
     $timebar.style.width = (Math.max(left,0)*100)+'%';
     $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
     
-   // Heartbeat Pulse when time is low for the HTML bar (desktop)
-        // Heartbeat Pulse when time is low for the HTML bar (desktop)
-        const $barwrap = document.getElementById('barwrap');
-        if (left < 0.3 && state === 'play') {
-            $barwrap.style.boxShadow = Math.floor(now/150)%2===0 ? '0 0 10px rgba(255,93,108,0.8)' : 'none';
-        } else {
-            $barwrap.style.boxShadow = 'none';
-        }
-        
-        if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
-        // Tactile UI Cooldown Sweeps
-        const scanPct = scanUntil > now ? ((scanUntil - now) / 4200) * 100 : 0;
-        const frzPct = freezeUntil > now ? ((freezeUntil - now) / 2200) * 100 : 0;
-        btnScan.style.setProperty('--cd', scanPct + '%');
-        btnFrz.style.setProperty('--cd', frzPct + '%');
-        
-        scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
-        frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+    // Heartbeat Pulse when time is low for the HTML bar (desktop)
+    const $barwrap = document.getElementById('barwrap');
+    if (left < 0.3 && state === 'play') {
+        $barwrap.style.boxShadow = Math.floor(now/150)%2===0 ? '0 0 10px rgba(255,93,108,0.8)' : 'none';
+    } else {
+        $barwrap.style.boxShadow = 'none';
+    }
+    
+    if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
+  }
 
-        // Dynamically lock tools while active so they cannot be double-pressed
-        if (state === 'play') {
-            btnScan.disabled = charges.scan <= 0 || scanPct > 0;
-            btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
-        }
-      }
-      let obstacleCache=null;
+  let obstacleCache=null;
   function obstacles(){
     if(obstacleCache) return obstacleCache;
     const cr=cv.getBoundingClientRect();
@@ -1509,7 +1497,7 @@ function rollOvergrowth(season = 'summer'){
         const len = 7 + (k%3)*3;
         ctx.beginPath(); ctx.moveTo(Math.cos(an)*5, Math.sin(an)*4); ctx.lineTo(Math.cos(an)*len, Math.sin(an)*len); ctx.stroke();
       }
-     ctx.restore();
+    ctx.restore();
     }
   }
   function drawHudInCanvas(){
@@ -1569,6 +1557,20 @@ function rollOvergrowth(season = 'summer'){
     
     ctx.shadowBlur = 0; // Reset shadow
     ctx.textAlign='start';
+
+    // Tactile UI Cooldown Sweeps (Moved here so they tick even while time is frozen!)
+    const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
+    const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
+    btnScan.style.setProperty('--cd', scanPct + '%');
+    btnFrz.style.setProperty('--cd', frzPct + '%');
+    
+    scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
+    frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+
+    if (state === 'play') {
+        btnScan.disabled = charges.scan <= 0 || scanPct > 0;
+        btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
+    }
   }
   function drawWindStreaks(now, Wv, Hv){
     const inten = Number(wind.intensity)||0;
