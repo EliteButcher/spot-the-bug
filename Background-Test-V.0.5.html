@@ -443,11 +443,16 @@ function spawn(){
     keepGarden=false;
     trail=[]; heists=[]; splats=[]; heistT=2+Math.random()*3;
     scanUntil=0; freezeUntil=0; lastTrailAt=0; cine=null; captureFx=null;
-    weatherParticles=[]; lightningFlash=0; 
+    
+    // --- RIGOROUS ROUND CLEANUP ---
+    weatherParticles=[]; lightningFlash=0; puddle=null;
     floatingTexts=[]; giantLeaves=[]; 
     wind = { active: false, vx: 0, targetVx: 0, timer: 0, leafDropped: false, intensity: 0, pattern: 0, killTimer: 0 };
     nextWindAt = gameNow + 15000 + Math.random() * 10000;
     
+    // Snap score immediately so it doesn't bleed ticking into the next round
+    displayScore = score; 
+    $s.style.transform = 'scale(1)';$s.style.color = 'var(--accent)';
     // 2. Puddle generation (Uses the previously declared `ti`)
     if (ti === 1 || ti === 2) { 
       let px, py, pr, valid = false, tries = 0;
@@ -1510,16 +1515,19 @@ function rollOvergrowth(season = 'summer'){
   function drawHudInCanvas(){
     const Wv=cv.clientWidth;
     
-    // Smooth Score Ticker (Tied directly to the CSS Pop!)
+    // Smooth Score Ticker (Faster resolve rate)
     if (displayScore < score) {
-        displayScore += Math.max(1, Math.floor((score - displayScore) * 0.1));
+        displayScore += Math.max(3, Math.floor((score - displayScore) * 0.25));
+        if (displayScore > score) displayScore = score;
         $s.textContent = displayScore;
-        $s.style.transform = 'scale(1.4)';
+        $s.style.transform = 'scale(1.25)'; // Gentle swell
         $s.style.color = '#f0c14b'; // Turns gold while adding
     } else {
+        $s.textContent = score;
         $s.style.transform = 'scale(1)';
         $s.style.color = 'var(--accent)';
     }
+
     if(lifeFx){
       const el = gameNow-lifeFx.t0;
       if(el > 2000){ lifeFx = null; document.getElementById('celebrate').style.display='none'; }
@@ -1904,6 +1912,7 @@ function rollOvergrowth(season = 'summer'){
       ctx.restore();
     }
   }
+
   function updateToolButtons(){
     $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
     btnScan.disabled = charges.scan<=0 || state!=='play' || scanUntil > gameNow;
