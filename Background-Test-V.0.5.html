@@ -1146,6 +1146,9 @@ function rollOvergrowth(season = 'summer'){
         }
       }
       let obstacleCache=null;
+        if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
+      }
+      let obstacleCache=null;
   function obstacles(){
     if(obstacleCache) return obstacleCache;
     const cr=cv.getBoundingClientRect();
@@ -1570,6 +1573,27 @@ function rollOvergrowth(season = 'summer'){
     ctx.shadowBlur = 0; // Reset shadow
     ctx.textAlign='start';
   }
+    ctx.fillStyle='#0a1210'; ctx.fillRect(10, 34, Wv-20, 8);
+    ctx.fillStyle = isDanger ? (pulseOn ? '#ff5d6c' : '#7a1b24') : '#39d98a';
+    ctx.fillRect(10, 34, (Wv-20)*left, 8);
+    
+    ctx.shadowBlur = 0; // Reset shadow
+    ctx.textAlign='start';
+
+    // Tactile UI Cooldown Sweeps (Moved here so they tick even while time is frozen!)
+    const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
+    const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
+    btnScan.style.setProperty('--cd', scanPct + '%');
+    btnFrz.style.setProperty('--cd', frzPct + '%');
+    
+    scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
+    frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+
+    if (state === 'play') {
+        btnScan.disabled = charges.scan <= 0 || scanPct > 0;
+        btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
+    }
+  }
   function drawWindStreaks(now, Wv, Hv){
     const inten = Number(wind.intensity)||0;
     const tvx = Number(wind.targetVx)||0;
@@ -1721,7 +1745,6 @@ function rollOvergrowth(season = 'summer'){
     if(!lifeFx)document.getElementById('celebrate').style.display='none';
     drawDecor();
     if(['play','hit','cine','advance'].includes(state)){
-      drawRadarTrail(now);
       drawSplats();
       drawHeists(now);
       for(const b of bugs) if(!b.squished) drawBug(b, now);
@@ -1841,6 +1864,12 @@ function rollOvergrowth(season = 'summer'){
       drawHudInCanvas();
       
       if(cine) drawCine(now);
+      ctx.restore();
+    }
+      // Top layer HUD elements that cut through weather
+      drawSonar(now);
+      drawHudInCanvas(); 
+      if(cine) drawCine(now);
       for (let i = floatingTexts.length - 1; i >= 0; i--) {
         let ft = floatingTexts[i];
         let elapsed = now - ft.t;
@@ -1899,18 +1928,29 @@ function rollOvergrowth(season = 'summer'){
     }
     if(heists.length>8) heists.splice(0, heists.length-8);
   }
-  function drawRadarTrail(now){
-    if(now>=scanUntil) return;
-    for(const p of trail){
-      const a = Math.max(0, 1-(now-p.t)/1200);
-      if(a<=0.02) continue;
-      ctx.save(); ctx.globalAlpha = a*0.75;
-      ctx.translate(p.x,p.y);ctx.rotate(p.ang+Math.PI/2);
-      ctx.fillStyle='#ff5d6c';
-      ctx.beginPath(); ctx.ellipse(-4, 0, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(4, 2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
+function drawSonar(now){
+    if(now>=scanUntil || !bugBug || bugBug.squished) return;
+    ctx.save();
+    // 3 overlapping expanding rings that slice through weather
+    for (let i = 0; i < 3; i++) {
+        let life = 1800;
+        let age = (now + i * 600) % life;
+        let p = age / life;
+        
+        let radius = 10 + p * 180; // Expands outward
+        let alpha = Math.max(0, (1 - p) * 0.8);
+        
+        ctx.beginPath();
+        ctx.arc(bugBug.x, bugBug.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(57, 217, 138, ${alpha})`;
+        ctx.lineWidth = 4 * (1 - p);
+        ctx.stroke();
     }
+    // Neon core reticle
+    const pulse = 0.5 + Math.sin(now/100)*0.5;
+    ctx.fillStyle = `rgba(57, 217, 138, ${0.4 + pulse*0.6})`;
+    ctx.beginPath(); ctx.arc(bugBug.x, bugBug.y, 6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 
   function updateToolButtons(){
@@ -2086,6 +2126,17 @@ function rollOvergrowth(season = 'summer'){
     let multi = Math.max(1, streak);
     let totalGain = baseGain * multi;
     let bonusGain = totalGain - baseGain;
+    const timeTaken = gameNow - roundStart;
+    const isCrit = timeTaken <= 3000;
+    if (isCrit) {
+      baseGain = Math.floor(baseGain * 1.5);
+      flashTag('\u26a1 QUICK DRAW! +50% SCORE', '#f0c14b');
+    }
+    
+    // The Combo Multiplier Split (Starts at 3x)
+    let multi = streak >= 3 ? streak : 1;
+    let totalGain = baseGain * multi;
+    let bonusGain = totalGain - baseGain;
 
     hitStopUntil = gameNow + 150;
     if(navigator.vibrate) navigator.vibrate(40);
@@ -2112,21 +2163,20 @@ function rollOvergrowth(season = 'summer'){
     // 1. Pure Action Feedback (Right over the bug)
     floatingTexts.push({
       x: b.x, y: b.y, 
-      text: isCrit ? '⚡ QUICK +' + baseGain : 'CAUGHT +' + baseGain, 
+      text: isCrit ? (streak >= 3 ? `⚡ QUICK x${streak} +${baseGain}` : `⚡ QUICK +${baseGain}`) : 'CAUGHT +' + baseGain, 
       color: isCrit ? '#f0c14b' : '#39d98a',
       t: gameNow, life: 1200, scale: isCrit ? 1.3 : 1.0
     });
 
     // 2. The Psychological Combo Reward (Center screen pop)
-    if (streak >= 2) {
+    if (streak >= 3) {
       floatingTexts.push({
         x: cv.clientWidth / 2, y: cv.clientHeight * 0.4, 
         text: `🔥 x${streak} COMBO BONUS! (+${bonusGain})`, 
         color: streak >= 5 ? '#ff5d6c' : '#ff7e47', 
         t: gameNow, life: 1600, scale: 1.3 + Math.min(streak * 0.1, 0.7)
       });
-    }
-    
+    }    
     transition={at:gameNow+(readUntil>gameNow?1700:700),fn:nextRound};updateToolButtons();
   }
   function hitWrong(b){
