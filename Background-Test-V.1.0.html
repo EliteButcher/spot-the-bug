@@ -1120,7 +1120,7 @@ function rollOvergrowth(season = 'summer'){
     $timebar.style.width = (Math.max(left,0)*100)+'%';
     $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
     
- // Heartbeat Pulse when time is low for the HTML bar (desktop)
+   // Heartbeat Pulse when time is low for the HTML bar (desktop)
         // Heartbeat Pulse when time is low for the HTML bar (desktop)
         const $barwrap = document.getElementById('barwrap');
         if (left < 0.3 && state === 'play') {
@@ -1130,7 +1130,22 @@ function rollOvergrowth(season = 'summer'){
         }
         
         if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
-  }
+        // Tactile UI Cooldown Sweeps
+        const scanPct = scanUntil > now ? ((scanUntil - now) / 4200) * 100 : 0;
+        const frzPct = freezeUntil > now ? ((freezeUntil - now) / 2200) * 100 : 0;
+        btnScan.style.setProperty('--cd', scanPct + '%');
+        btnFrz.style.setProperty('--cd', frzPct + '%');
+        
+        scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
+        frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+
+        // Dynamically lock tools while active so they cannot be double-pressed
+        if (state === 'play') {
+            btnScan.disabled = charges.scan <= 0 || scanPct > 0;
+            btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
+        }
+      }
+      let obstacleCache=null;
   function obstacles(){
     if(obstacleCache) return obstacleCache;
     const cr=cv.getBoundingClientRect();
@@ -1554,20 +1569,6 @@ function rollOvergrowth(season = 'summer'){
     
     ctx.shadowBlur = 0; // Reset shadow
     ctx.textAlign='start';
-
-    // Tactile UI Cooldown Sweeps (Ticks even while frozen)
-    const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
-    const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
-    btnScan.style.setProperty('--cd', scanPct + '%');
-    btnFrz.style.setProperty('--cd', frzPct + '%');
-    
-    scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
-    frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
-
-    if (state === 'play') {
-        btnScan.disabled = charges.scan <= 0 || scanPct > 0;
-        btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
-    }
   }
   function drawWindStreaks(now, Wv, Hv){
     const inten = Number(wind.intensity)||0;
@@ -1836,7 +1837,6 @@ function rollOvergrowth(season = 'summer'){
       ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
       ctx.restore();
     }
-      drawSonar(now);      
       // Draw HUD absolutely last so weather never blocks hearts/tools
       drawHudInCanvas();
       
@@ -1899,182 +1899,20 @@ function rollOvergrowth(season = 'summer'){
     }
     if(heists.length>8) heists.splice(0, heists.length-8);
   }
-  function drawSonar(now){
-    if(now>=scanUntil || !bugBug || bugBug.squished) return;
-    ctx.save();
-    // 3 overlapping expanding rings that slice through weather
-    for (let i = 0; i < 3; i++) {
-        let life = 1800;
-        let age = (now + i * 600) % life;
-        let p = age / life;
-        
-        let radius = 10 + p * 180; // Expands outward
-        let alpha = Math.max(0, (1 - p) * 0.8);
-        
-        ctx.beginPath();
-        ctx.arc(bugBug.x, bugBug.y, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(57, 217, 138, ${alpha})`;
-        ctx.lineWidth = 4 * (1 - p);
-        ctx.stroke();
-    }
-    const pulse = 0.5 + Math.sin(now/100)*0.5;
-    ctx.fillStyle = `rgba(57, 217, 138, ${0.4 + pulse*0.6})`;
-    ctx.beginPath(); ctx.arc(bugBug.x, bugBug.y, 6, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-  function draw(now){
-    document.getElementById('frame').classList.toggle('cinematic',state==='cine');
-    if(!lifeFx)document.getElementById('celebrate').style.display='none';
-    drawDecor();
-    if(['play','hit','cine','advance'].includes(state)){
-      drawSplats();
-      drawHeists(now);
-      for(const b of bugs) if(!b.squished) drawBug(b, now);
-      drawWindStreaks(now, cv.clientWidth, cv.clientHeight);
-
-      const renderWeather = (p) => {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        if (p.type === 'snow') {
-          ctx.globalAlpha = p.alpha;
-          if (p.scale > 2.2 && !p.landed && !p.attachedTo) {
-            ctx.rotate(p.ang); 
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = p.scale * 0.3;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            for(let k=0; k<6; k++) {
-              ctx.moveTo(0,0);
-              ctx.lineTo(Math.cos(k*Math.PI/3)*p.scale*1.8, Math.sin(k*Math.PI/3)*p.scale*1.8);
-            }
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else if (p.type === 'rain' || p.type === 'storm') {
-          ctx.globalAlpha = p.alpha;
-          ctx.strokeStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
-          ctx.lineWidth = p.type === 'storm' ? 1.5 : 1;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(-p.vx * 0.08, -p.vy * 0.08); 
-          ctx.stroke();
-        } else if (p.type === 'splash') {
-          ctx.globalAlpha = p.alpha;
-          ctx.fillStyle = p.type === 'storm' ? '#cce0ff' : '#aaccff';
-          ctx.beginPath();
-          ctx.arc(0, 0, p.scale, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (p.type === 'autumn') {
-          ctx.globalAlpha = p.alpha; 
-          ctx.rotate(p.ang);
-          ctx.scale(p.scale, p.scale);
-          ctx.shadowColor = 'rgba(0,0,0,0.4)';
-          ctx.shadowBlur = 8; ctx.shadowOffsetY = 10;
-          ctx.fillStyle = `hsl(${p.hue}, 70%, ${p.lum}%)`;
-          ctx.strokeStyle = `hsl(${p.hue}, 80%, ${p.lum - 15}%)`;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(0, 8); ctx.quadraticCurveTo(6, 2, 8, -6);
-          ctx.quadraticCurveTo(2, -8, 0, -12); ctx.quadraticCurveTo(-2, -8, -8, -6);
-          ctx.quadraticCurveTo(-6, 2, 0, 8); ctx.fill();
-          ctx.shadowColor = 'transparent'; ctx.stroke();
-          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-          ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -8); ctx.stroke();
-        } else if (p.type === 'fog') {
-          ctx.globalAlpha = p.alpha;
-          const fogGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.scale);
-          fogGrad.addColorStop(0, 'rgba(255,255,255,1)');
-          fogGrad.addColorStop(1, 'rgba(255,255,255,0)');
-          ctx.fillStyle = fogGrad;
-          ctx.beginPath(); 
-          ctx.arc(0, 0, p.scale, 0, Math.PI * 2); 
-          ctx.fill();
-        }
-        ctx.restore();
-      }; 
-
-      for (const p of weatherParticles) if (p.attachedTo) renderWeather(p);
-      drawForeground(now);
-      for (const p of weatherParticles) if (!p.attachedTo) renderWeather(p);
-
-      if (lightningFlash > 0) {
-        ctx.save();
-        ctx.globalAlpha = lightningFlash * 0.6; 
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
-        ctx.restore();
-      }
-
-      for(const gl of giantLeaves){
-        ctx.save(); ctx.translate(gl.x, gl.y); ctx.rotate(gl.ang);
-        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; 
-        ctx.shadowOffsetX = 15; ctx.shadowOffsetY = 35;
-        ctx.scale(gl.scale/100, gl.scale/100); 
-        ctx.fillStyle = `hsl(${gl.hue}, 60%, 45%)`; ctx.strokeStyle = `hsl(${gl.hue}, 70%, 25%)`; ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, 35); 
-        ctx.quadraticCurveTo(15, 10, 35, 15); 
-        ctx.quadraticCurveTo(20, -5, 45, -20); 
-        ctx.quadraticCurveTo(15, -15, 0, -55); 
-        ctx.quadraticCurveTo(-15, -15, -45, -20); 
-        ctx.quadraticCurveTo(-20, -5, -35, 15); 
-        ctx.quadraticCurveTo(-15, 10, 0, 35); 
-        ctx.fill(); ctx.stroke();
-        ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
-        ctx.restore();
-      }
-
-      // Top layer HUD elements
-      drawSonar(now);      
-      drawHudInCanvas();
-      
-      if(cine) drawCine(now);
-      
-      for (let i = floatingTexts.length - 1; i >= 0; i--) {
-        let ft = floatingTexts[i];
-        let elapsed = now - ft.t;
-        if (elapsed > ft.life) { floatingTexts.splice(i, 1); continue; }
-        
-        let p = elapsed / ft.life; 
-        let currentY = ft.y - (p * 40); 
-        let popScale = ft.scale * (1 + Math.sin(p * Math.PI) * 0.3); 
-        let alpha = 1 - Math.pow(p, 3); 
-        
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.translate(ft.x, Math.max(100, currentY - 36));
-        ctx.scale(popScale, popScale);
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 15px Courier New';
-        
-        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-        ctx.lineWidth = 4;
-        ctx.strokeText(ft.text, 0, 0);
-        
-        ctx.fillStyle = ft.color;
-        ctx.fillText(ft.text, 0, 0);
-        ctx.restore();
-      }
-      if (now < hitStopUntil) {
-        ctx.save();
-        ctx.globalAlpha = (hitStopUntil - now) / 150;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
-        ctx.restore();
-      }
+  function drawRadarTrail(now){
+    if(now>=scanUntil) return;
+    for(const p of trail){
+      const a = Math.max(0, 1-(now-p.t)/1200);
+      if(a<=0.02) continue;
+      ctx.save(); ctx.globalAlpha = a*0.75;
+      ctx.translate(p.x,p.y);ctx.rotate(p.ang+Math.PI/2);
+      ctx.fillStyle='#ff5d6c';
+      ctx.beginPath(); ctx.ellipse(-4, 0, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4, 2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
     }
   }
-  function updateToolButtons(){
-    $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
+
   function updateToolButtons(){
     $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
     btnScan.disabled = charges.scan<=0 || state!=='play' || scanUntil > gameNow;
@@ -2245,8 +2083,7 @@ function rollOvergrowth(season = 'summer'){
     }
     
     // The Combo Multiplier Split
-   // The Combo Multiplier Split (Starts at 3x)
-    let multi = streak >= 3 ? streak : 1;
+    let multi = Math.max(1, streak);
     let totalGain = baseGain * multi;
     let bonusGain = totalGain - baseGain;
 
@@ -2275,13 +2112,13 @@ function rollOvergrowth(season = 'summer'){
     // 1. Pure Action Feedback (Right over the bug)
     floatingTexts.push({
       x: b.x, y: b.y, 
-      text: isCrit ? (streak >= 3 ? `⚡ QUICK x${streak} +${baseGain}` : `⚡ QUICK +${baseGain}`) : 'CAUGHT +' + baseGain, 
+      text: isCrit ? '⚡ QUICK +' + baseGain : 'CAUGHT +' + baseGain, 
       color: isCrit ? '#f0c14b' : '#39d98a',
       t: gameNow, life: 1200, scale: isCrit ? 1.3 : 1.0
     });
 
     // 2. The Psychological Combo Reward (Center screen pop)
-    if (streak >= 3) {
+    if (streak >= 2) {
       floatingTexts.push({
         x: cv.clientWidth / 2, y: cv.clientHeight * 0.4, 
         text: `🔥 x${streak} COMBO BONUS! (+${bonusGain})`, 
