@@ -1120,7 +1120,7 @@ function rollOvergrowth(season = 'summer'){
     $timebar.style.width = (Math.max(left,0)*100)+'%';
     $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
     
-   // Heartbeat Pulse when time is low for the HTML bar (desktop)
+ // Heartbeat Pulse when time is low for the HTML bar (desktop)
         // Heartbeat Pulse when time is low for the HTML bar (desktop)
         const $barwrap = document.getElementById('barwrap');
         if (left < 0.3 && state === 'play') {
@@ -1130,22 +1130,7 @@ function rollOvergrowth(season = 'summer'){
         }
         
         if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
-        // Tactile UI Cooldown Sweeps
-        const scanPct = scanUntil > now ? ((scanUntil - now) / 4200) * 100 : 0;
-        const frzPct = freezeUntil > now ? ((freezeUntil - now) / 2200) * 100 : 0;
-        btnScan.style.setProperty('--cd', scanPct + '%');
-        btnFrz.style.setProperty('--cd', frzPct + '%');
-        
-        scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
-        frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
-
-        // Dynamically lock tools while active so they cannot be double-pressed
-        if (state === 'play') {
-            btnScan.disabled = charges.scan <= 0 || scanPct > 0;
-            btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
-        }
-      }
-      let obstacleCache=null;
+  }
   function obstacles(){
     if(obstacleCache) return obstacleCache;
     const cr=cv.getBoundingClientRect();
@@ -1569,6 +1554,20 @@ function rollOvergrowth(season = 'summer'){
     
     ctx.shadowBlur = 0; // Reset shadow
     ctx.textAlign='start';
+
+    // Tactile UI Cooldown Sweeps (Ticks even while frozen)
+    const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
+    const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
+    btnScan.style.setProperty('--cd', scanPct + '%');
+    btnFrz.style.setProperty('--cd', frzPct + '%');
+    
+    scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
+    frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+
+    if (state === 'play') {
+        btnScan.disabled = charges.scan <= 0 || scanPct > 0;
+        btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
+    }
   }
   function drawWindStreaks(now, Wv, Hv){
     const inten = Number(wind.intensity)||0;
@@ -1837,6 +1836,7 @@ function rollOvergrowth(season = 'summer'){
       ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
       ctx.restore();
     }
+      drawSonar(now);      
       // Draw HUD absolutely last so weather never blocks hearts/tools
       drawHudInCanvas();
       
@@ -1899,18 +1899,29 @@ function rollOvergrowth(season = 'summer'){
     }
     if(heists.length>8) heists.splice(0, heists.length-8);
   }
-  function drawRadarTrail(now){
-    if(now>=scanUntil) return;
-    for(const p of trail){
-      const a = Math.max(0, 1-(now-p.t)/1200);
-      if(a<=0.02) continue;
-      ctx.save(); ctx.globalAlpha = a*0.75;
-      ctx.translate(p.x,p.y);ctx.rotate(p.ang+Math.PI/2);
-      ctx.fillStyle='#ff5d6c';
-      ctx.beginPath(); ctx.ellipse(-4, 0, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(4, 2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
+  function drawSonar(now){
+    if(now>=scanUntil || !bugBug || bugBug.squished) return;
+    ctx.save();
+    // 3 overlapping expanding rings that slice through weather
+    for (let i = 0; i < 3; i++) {
+        let life = 1800;
+        let age = (now + i * 600) % life;
+        let p = age / life;
+        
+        let radius = 10 + p * 180; // Expands outward
+        let alpha = Math.max(0, (1 - p) * 0.8);
+        
+        ctx.beginPath();
+        ctx.arc(bugBug.x, bugBug.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(57, 217, 138, ${alpha})`;
+        ctx.lineWidth = 4 * (1 - p);
+        ctx.stroke();
     }
+    // Neon core reticle
+    const pulse = 0.5 + Math.sin(now/100)*0.5;
+    ctx.fillStyle = `rgba(57, 217, 138, ${0.4 + pulse*0.6})`;
+    ctx.beginPath(); ctx.arc(bugBug.x, bugBug.y, 6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 
   function updateToolButtons(){
@@ -2083,7 +2094,8 @@ function rollOvergrowth(season = 'summer'){
     }
     
     // The Combo Multiplier Split
-    let multi = Math.max(1, streak);
+   // The Combo Multiplier Split (Starts at 3x)
+    let multi = streak >= 3 ? streak : 1;
     let totalGain = baseGain * multi;
     let bonusGain = totalGain - baseGain;
 
@@ -2112,13 +2124,13 @@ function rollOvergrowth(season = 'summer'){
     // 1. Pure Action Feedback (Right over the bug)
     floatingTexts.push({
       x: b.x, y: b.y, 
-      text: isCrit ? '⚡ QUICK +' + baseGain : 'CAUGHT +' + baseGain, 
+      text: isCrit ? (streak >= 3 ? `⚡ QUICK x${streak} +${baseGain}` : `⚡ QUICK +${baseGain}`) : 'CAUGHT +' + baseGain, 
       color: isCrit ? '#f0c14b' : '#39d98a',
       t: gameNow, life: 1200, scale: isCrit ? 1.3 : 1.0
     });
 
     // 2. The Psychological Combo Reward (Center screen pop)
-    if (streak >= 2) {
+    if (streak >= 3) {
       floatingTexts.push({
         x: cv.clientWidth / 2, y: cv.clientHeight * 0.4, 
         text: `🔥 x${streak} COMBO BONUS! (+${bonusGain})`, 
