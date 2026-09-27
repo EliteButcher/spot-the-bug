@@ -68,13 +68,14 @@
   }
   .fab::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: conic-gradient(rgba(0,0,0,0.7) var(--cd, 0%), transparent 0);
+    background: conic-gradient(rgba(0,0,0,0.75) var(--cd, 0%), transparent var(--cd, 0%));
   }
   .fab.pop { transform: scale(1.15); }
   .fab .ico{font-size:22px; z-index:1}
   .fab b{color:var(--accent); font-size:14px; z-index:1}
   .fab span{z-index:1}
   .fab:disabled{opacity:.3; cursor:default}
+  .fab.cooldown:disabled{opacity:1;}
   .fab:not(:disabled):active{transform:scale(.93)}
   #t-scan{border-color:#ff5d6c}
   #t-freeze{border-color:#4dc3ff}
@@ -1113,6 +1114,7 @@ function rollOvergrowth(season = 'summer'){
     $timebar.style.background = left<0.3 ? 'var(--bad)' : 'var(--accent)';
     
    // Heartbeat Pulse when time is low for the HTML bar (desktop)
+        // Heartbeat Pulse when time is low for the HTML bar (desktop)
         const $barwrap = document.getElementById('barwrap');
         if (left < 0.3 && state === 'play') {
             $barwrap.style.boxShadow = Math.floor(now/150)%2===0 ? '0 0 10px rgba(255,93,108,0.8)' : 'none';
@@ -1126,6 +1128,15 @@ function rollOvergrowth(season = 'summer'){
         const frzPct = freezeUntil > now ? ((freezeUntil - now) / 2200) * 100 : 0;
         btnScan.style.setProperty('--cd', scanPct + '%');
         btnFrz.style.setProperty('--cd', frzPct + '%');
+        
+        scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
+        frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
+
+        // Dynamically lock tools while active so they cannot be double-pressed
+        if (state === 'play') {
+            btnScan.disabled = charges.scan <= 0 || scanPct > 0;
+            btnFrz.disabled = charges.freeze <= 0 || frzPct > 0;
+        }
       }
       let obstacleCache=null;
   function obstacles(){
@@ -1887,16 +1898,14 @@ function rollOvergrowth(season = 'summer'){
       ctx.restore();
     }
   }
-
   function updateToolButtons(){
     $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
-    btnScan.disabled = charges.scan<=0 || state!=='play';
-   btnFrz.disabled = charges.freeze<=0 || state!=='play';
+    btnScan.disabled = charges.scan<=0 || state!=='play' || scanUntil > gameNow;
+    btnFrz.disabled = charges.freeze<=0 || state!=='play' || freezeUntil > gameNow;
     document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
     document.getElementById('t-ernie').disabled = state!=='play';
-  }
- function addScore(n){
-    score+=n; $s.textContent=score; scorePopAt=gameNow;
+  function addScore(n){
+    score+=n; scorePopAt=gameNow;
     if(score>hi){ hi=score; $hi.textContent=hi; try{ localStorage.setItem('stb_high',''+hi); }catch(e){} }$s.style.textShadow = '0 0 8px #39d98a';
     setTimeout(()=>{ $s.style.textShadow=''; }, 300);
   }
