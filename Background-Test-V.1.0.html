@@ -31,12 +31,12 @@
     display:flex; flex-direction:column; background:var(--panel);
     border-bottom:1px solid #1d2b26; z-index: 10;
   }
-  .stats-row{
+ .stats-row{
     padding:12px 16px; display:flex; justify-content:space-between; align-items:center;
     font-size:13px; letter-spacing:1px;
   }
-  header .title{color:var(--accent); font-weight:bold; width:130px;}
-  #hud{display:flex; gap:12px; color:var(--dim); font-size:12px; justify-content:flex-end; width:130px;}
+  header .title{color:var(--accent); font-weight:bold; flex:1; text-align:left;}
+  #hud{display:flex; gap:12px; color:var(--dim); font-size:12px; justify-content:flex-end; flex:1;}
   #hud b{color:var(--ink)}
   #hearts{font-size:16px; letter-spacing:4px; color:var(--bad); text-align:center; flex:1;}
   #hearts.empty{color:#3a2b30}
@@ -185,7 +185,7 @@
     <div class="stats-row">
       <span class="title">SPOT THE BUG</span>
       <span id="hearts">●●●●●</span>
-      <span id="hud">RND <b id="r">1</b> · SCR <b id="s">0</b> <span id="stk-badge" style="display:none; transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-left:4px; font-weight:bold;">🔥x<b id="stk">0</b></span></span>
+      <span id="hud">RND <b id="r">1</b> · SCR <b id="s">0</b> <span id="stk-badge" style="display:none; transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-left:4px; font-weight:bold;">🔥x<b id="stk">0</b></span> · HI <b id="hi">0</b></span>
     </div>
     <div id="barwrap"><div id="timebar"></div></div>
   </header>
