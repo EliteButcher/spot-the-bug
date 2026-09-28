@@ -31,7 +31,7 @@
     display:flex; flex-direction:column; background:var(--panel);
     border-bottom:1px solid #1d2b26; z-index: 10;
   }
- .stats-row{
+.stats-row{
     padding:12px 16px; display:flex; justify-content:space-between; align-items:center;
     font-size:13px; letter-spacing:1px;
   }
@@ -1674,12 +1674,11 @@ function rollOvergrowth(season = 'summer'){
     }
   }
 
-  function draw(now){
+ function draw(now){
     document.getElementById('frame').classList.toggle('cinematic',state==='cine');
     if(!lifeFx)document.getElementById('celebrate').style.display='none';
     drawDecor();
     if(['play','hit','cine','advance'].includes(state)){
-      drawRadarTrail(now);
       drawSplats();
       drawHeists(now);
       for(const b of bugs) if(!b.squished) drawBug(b, now);
@@ -1792,10 +1791,11 @@ function rollOvergrowth(season = 'summer'){
       ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+     ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
       ctx.restore();
     }
-      // Draw HUD absolutely last so weather never blocks hearts/tools
+      // Top layer HUD elements that cut through weather
+      drawRadarTrail(now);      
       drawHudInCanvas();
       
       if(cine) drawCine(now);
@@ -1857,16 +1857,25 @@ function rollOvergrowth(season = 'summer'){
     }
     if(heists.length>8) heists.splice(0, heists.length-8);
   }
-  function drawRadarTrail(now){
+ function drawRadarTrail(now){
     if(now>=scanUntil) return;
     for(const p of trail){
-      const a = Math.max(0, 1-(now-p.t)/1200);
+      const age = now - p.t;
+      const a = Math.max(0, 1 - age / 2500); // Lingers longer to form a trackable path
       if(a<=0.02) continue;
-      ctx.save(); ctx.globalAlpha = a*0.75;
-      ctx.translate(p.x,p.y);ctx.rotate(p.ang+Math.PI/2);
-      ctx.fillStyle='#ff5d6c';
-      ctx.beginPath(); ctx.ellipse(-4, 0, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(4, 2, 2.4, 1.4, 0, 0, Math.PI*2); ctx.fill();
+      
+      ctx.save(); 
+      ctx.globalAlpha = a * 0.9;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.ang + Math.PI/2);
+      
+      // Glowing Neon Footprints that cut through the canopy
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 8;
+      
+      ctx.beginPath(); ctx.ellipse(-4, 0, 2.8, 1.6, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4, 2, 2.8, 1.6, 0, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
   }
