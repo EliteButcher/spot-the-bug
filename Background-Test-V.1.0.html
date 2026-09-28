@@ -27,7 +27,7 @@
     background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
     mix-blend-mode:multiply;
   }
-  header{
+ header{
     display:flex; flex-direction:column; background:var(--panel);
     border-bottom:1px solid #1d2b26; z-index: 10;
   }
@@ -44,7 +44,6 @@
   #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear, background-color 0.2s;}
   .danger-pulse { animation: pulseBar 0.5s infinite; border-color: var(--bad) !important; }
   @keyframes pulseBar { 0% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(255, 93, 108, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0); } }
-  #crumbs{font-size:11px; color:var(--accent); font-weight:bold;}
   #s { display: inline-block; font-size: 16px; color: var(--accent); text-shadow: 0 0 4px rgba(57, 217, 138, 0.3); font-weight: 900; transition: transform 0.1s ease-out; }
  #fabs{pointer-events:none; position:absolute; top:50%; left:10px; transform:translateY(-50%); z-index:5; display:flex; flex-direction:column; gap:12px}
   .fab{
@@ -143,7 +142,7 @@
   #banner .skin.on{background:linear-gradient(#f0f0f0,#8a8a8a); color:#111; border-color:transparent}
   #banner small{z-index:1}
  #tag{
-    position:absolute; bottom:30px; top:auto; left:50%; transform:translateX(-50%); z-index:10;
+    position:absolute; bottom:25px; top:auto; left:50%; transform:translateX(-50%); z-index:10;
     max-width:92%; text-align:center;
     font-size:12px; color:var(--warn); min-height:16px; letter-spacing:.5px;
     padding:6px 14px; pointer-events:none;
@@ -158,7 +157,7 @@
     background:rgba(10,14,18,.72); border:1px solid rgba(240,193,75,.55);
     padding:10px 18px; border-radius:6px; white-space:nowrap;
   }
- @media (max-width:700px){
+  @media (max-width:700px){
     .stats-row{padding:8px; font-size:11px;} header .title{width:auto;} #hud{width:auto; gap:6px; font-size:10px;} #hearts{font-size:13px; letter-spacing:2px;}
     footer{font-size:9px;padding:8px} #banner{padding:12px;gap:5px} #banner h1{font-size:26px}
     #banner p{font-size:12px}
@@ -217,8 +216,8 @@
     </div>
   </div>
 <footer>
-    <span id="crumbs">DELIVERED 0</span>
-    <span style="color:#e6e6e6; flex:1; text-align:center;">⚠ V1.0-2</span>
+    <span id="crumbs" style="font-weight:bold; color:var(--accent);">DELIVERED 0</span>
+    <span style="color:#e6e6e6; flex:1; text-align:center;">⚠ V0.5 BUILD</span>
     <button id="mute">SOUND ON</button>
   </footer>
 </div>
@@ -1516,6 +1515,7 @@ function rollOvergrowth(season = 'summer'){
         ctx.restore();
       }
     }
+
     const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
     const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
     btnScan.style.setProperty('--cd', scanPct + '%');
