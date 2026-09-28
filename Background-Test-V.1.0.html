@@ -28,34 +28,24 @@
     mix-blend-mode:multiply;
   }
   header{
-    padding:8px 14px; border-bottom:1px solid #1d2b26;
-    display:flex; justify-content:space-between; align-items:baseline;
+    display:flex; flex-direction:column; background:var(--panel);
+    border-bottom:1px solid #1d2b26; z-index: 10;
+  }
+  .stats-row{
+    padding:12px 16px; display:flex; justify-content:space-between; align-items:center;
     font-size:13px; letter-spacing:1px;
   }
-  header .title{color:var(--accent); font-weight:bold}
-  #hud{display:flex; gap:14px; color:var(--dim); font-size:12px}
+  header .title{color:var(--accent); font-weight:bold; width:130px;}
+  #hud{display:flex; gap:12px; color:var(--dim); font-size:12px; justify-content:flex-end; width:130px;}
   #hud b{color:var(--ink)}
-  #status{
-    padding:6px 14px 4px; border-bottom:1px solid #1d2b26;
-    display:flex; align-items:center; gap:12px;
-  }
- #hearts{font-size:18px; letter-spacing:3px; color:var(--bad); min-width:74px}
+  #hearts{font-size:16px; letter-spacing:4px; color:var(--bad); text-align:center; flex:1;}
   #hearts.empty{color:#3a2b30}
-  #barwrap{flex:1; height:10px; background:#0a1210; border:1px solid #1d2b26; border-radius:3px; overflow:hidden; transition: border-color 0.2s, box-shadow 0.2s;}
+  #barwrap{width:100%; height:4px; background:#0a1210; overflow:hidden; transition: border-color 0.2s, box-shadow 0.2s;}
   #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear, background-color 0.2s;}
   .danger-pulse { animation: pulseBar 0.5s infinite; border-color: var(--bad) !important; }
   @keyframes pulseBar { 0% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(255, 93, 108, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0); } }
-  #crumbs{font-size:10px; color:var(--dim); min-width:88px; text-align:right}
-  #s { display: inline-block; font-size: 18px; color: var(--accent); text-shadow: 0 0 4px rgba(57, 217, 138, 0.3); font-weight: 900; transition: transform 0.1s ease-out; }
-  #tools{
-    padding:6px 14px; border-bottom:1px solid #1d2b26;
-    display:flex; gap:10px; align-items:center;
-  }
-  .tool{
-    background:#0b1412; border:1px solid #1d3a2c; color:var(--ink);
-    font-family:inherit; font-size:11px; letter-spacing:1px;
-    padding:7px 12px; border-radius:4px; cursor:pointer;
-  }
+  #crumbs{font-size:11px; color:var(--accent); font-weight:bold;}
+  #s { display: inline-block; font-size: 16px; color: var(--accent); text-shadow: 0 0 4px rgba(57, 217, 138, 0.3); font-weight: 900; transition: transform 0.1s ease-out; }
  #fabs{pointer-events:none; position:absolute; top:50%; left:10px; transform:translateY(-50%); z-index:5; display:flex; flex-direction:column; gap:12px}
   .fab{
     pointer-events:auto; position:relative; overflow:hidden;
@@ -152,8 +142,8 @@
   }
   #banner .skin.on{background:linear-gradient(#f0f0f0,#8a8a8a); color:#111; border-color:transparent}
   #banner small{z-index:1}
-  #tag{
-    position:absolute; top:46px; left:50%; transform:translateX(-50%);
+ #tag{
+    position:absolute; bottom:30px; top:auto; left:50%; transform:translateX(-50%); z-index:10;
     max-width:92%; text-align:center;
     font-size:12px; color:var(--warn); min-height:16px; letter-spacing:.5px;
     padding:6px 14px; pointer-events:none;
@@ -168,10 +158,9 @@
     background:rgba(10,14,18,.72); border:1px solid rgba(240,193,75,.55);
     padding:10px 18px; border-radius:6px; white-space:nowrap;
   }
-  @media (max-width:700px){
-    header{padding:8px;letter-spacing:0;font-size:11px} #hud{font-size:10px;gap:4px} footer{font-size:9px;padding:8px} #banner{padding:12px;gap:5px} #banner h1{font-size:26px}
-    #status{display:none}
-    #tooltipline{display:none}
+ @media (max-width:700px){
+    .stats-row{padding:8px; font-size:11px;} header .title{width:auto;} #hud{width:auto; gap:6px; font-size:10px;} #hearts{font-size:13px; letter-spacing:2px;}
+    footer{font-size:9px;padding:8px} #banner{padding:12px;gap:5px} #banner h1{font-size:26px}
     #banner p{font-size:12px}
     #banner .warnrow{font-size:16px;letter-spacing:8px;margin-bottom:0}
     #banner .crest{width:56px;height:56px;font-size:26px}
@@ -194,17 +183,13 @@
 <body>
 <div id="frame">
   <header>
-    <span class="title">SPOT THE BUG ⚠ TEST</span>
-    <span id="hud">ROUND <b id="r">1</b> · SCORE <b id="s">0</b> <span id="stk-badge" style="display:none; transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-left:4px; font-weight:bold;">🔥x<b id="stk">0</b></span> · HI <b id="hi">0</b></span>
-  </header>
-  <div id="status">
-    <span id="hearts">●●●●●</span>
+    <div class="stats-row">
+      <span class="title">SPOT THE BUG</span>
+      <span id="hearts">●●●●●</span>
+      <span id="hud">RND <b id="r">1</b> · SCR <b id="s">0</b> <span id="stk-badge" style="display:none; transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin-left:4px; font-weight:bold;">🔥x<b id="stk">0</b></span></span>
+    </div>
     <div id="barwrap"><div id="timebar"></div></div>
-    <span id="crumbs">DELIVERED 0</span>
-  </div>
-  <div id="tools">
-    <span id="tooltipline">catch bugs clean to earn tools · the golden one is rare</span>
-  </div>
+  </header>
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="fabs">
@@ -231,10 +216,10 @@
       <button class="skin" id="to-title" style="display:none">MAIN MENU</button>
     </div>
   </div>
-  <footer>
-    <span style="color:#e6e6e6">⚠ TEST FILE V1.0 · background test · may be fps heavy</span>
+<footer>
+    <span id="crumbs">DELIVERED 0</span>
+    <span style="color:#e6e6e6; flex:1; text-align:center;">⚠ V1.0-2</span>
     <button id="mute">SOUND ON</button>
-    <span class="blink" id="cursor">█</span>
   </footer>
 </div>
 
@@ -1500,16 +1485,15 @@ function rollOvergrowth(season = 'summer'){
     ctx.restore();
     }
   }
-  function drawHudInCanvas(){
+ function drawHudInCanvas(){
     const Wv=cv.clientWidth;
     
-    // Smooth Score Ticker (Faster resolve rate)
     if (displayScore < score) {
         displayScore += Math.max(3, Math.floor((score - displayScore) * 0.25));
         if (displayScore > score) displayScore = score;
         $s.textContent = displayScore;
-        $s.style.transform = 'scale(1.25)'; // Gentle swell
-        $s.style.color = '#f0c14b'; // Turns gold while adding
+        $s.style.transform = 'scale(1.25)'; 
+        $s.style.color = '#f0c14b'; 
     } else {
         $s.textContent = score;
         $s.style.transform = 'scale(1)';
@@ -1532,38 +1516,10 @@ function rollOvergrowth(season = 'summer'){
         ctx.restore();
       }
     }
-    ctx.font='bold 15px Courier New'; ctx.textAlign='left'; ctx.fillStyle='#ff5d6c';
-    if(lives>0){for(let i=0;i<lives;i++)ctx.fillText('●',10+i*19,26);}else ctx.fillText('—',10,26);
-    
-    // Delivered Crumb Counter for Mobile Canvas HUD
-    ctx.fillStyle = '#ffb347';
-    ctx.font = 'bold 11px Courier New';
-    ctx.textAlign = 'right';
-    ctx.fillText('DELIVERED ' + delivered, Wv - 10, 25);
-
-    const left = state==='play' ? Math.max(0, 1-(gameNow-roundStart)/roundLen) : (state==='hit'?0:1);
-    
-    // Heartbeat Pulse Logic for Canvas HUD
-    const isDanger = left < 0.3 && state === 'play';
-    const pulseOn = isDanger && Math.floor(gameNow / 150) % 2 === 0;
-
-    if (pulseOn) {
-      ctx.shadowColor = 'rgba(255, 93, 108, 0.8)';
-      ctx.shadowBlur = 10;
-    }    
-    ctx.fillStyle='#0a1210'; ctx.fillRect(10, 34, Wv-20, 8);
-    ctx.fillStyle = isDanger ? (pulseOn ? '#ff5d6c' : '#7a1b24') : '#39d98a';
-    ctx.fillRect(10, 34, (Wv-20)*left, 8);
-    
-    ctx.shadowBlur = 0; // Reset shadow
-    ctx.textAlign='start';
-
-    // Tactile UI Cooldown Sweeps (Moved here so they tick even while time is frozen!)
     const scanPct = scanUntil > gameNow ? ((scanUntil - gameNow) / 4200) * 100 : 0;
     const frzPct = freezeUntil > gameNow ? ((freezeUntil - gameNow) / 2200) * 100 : 0;
     btnScan.style.setProperty('--cd', scanPct + '%');
-    btnFrz.style.setProperty('--cd', frzPct + '%');
-    
+    btnFrz.style.setProperty('--cd', frzPct + '%');    
     scanPct > 0 ? btnScan.classList.add('cooldown') : btnScan.classList.remove('cooldown');
     frzPct > 0 ? btnFrz.classList.add('cooldown') : btnFrz.classList.remove('cooldown');
 
