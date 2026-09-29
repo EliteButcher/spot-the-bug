@@ -2253,7 +2253,7 @@ function nextRound(){
     } else if (streak >= 3 && !capIncreased) {
         let roll = Math.random();
         if (roll < 0.10) {
-            toolAnimQueue.push({ type: 'score', amt: 1000, reason: 'RARE DROP' });
+            toolAnimQueue.push({ type: 'score', amt: 1000, reason: 'EPIC DROP' });
         } else {
             // Dynamic Weighting (50 Freeze : 40 Scan Baseline)
             let fW = 50, sW = 40;
@@ -2263,7 +2263,7 @@ function nextRound(){
             let which = Math.random() < (fW / (fW + sW)) ? 'freeze' : 'scan';
             
             if (charges[which] >= maxC[which]) {
-                toolAnimQueue.push({ type: 'score', amt: 25, reason: 'CACHE FULL' });
+                toolAnimQueue.push({ type: 'score', amt: 500, reason: 'RARE DROP' });
             } else {
                 toolAnimQueue.push({ type: 'tool', which: which, reason: `x${streak} STREAK BONUS` });
             }
