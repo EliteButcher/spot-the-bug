@@ -2278,9 +2278,7 @@ function nextRound(){
       startRound();
     }};
   }
-    // Trigger tool calculation immediately so the animation happens during the downtime
-    if(streak>=3) grantTool();
-  }
+
   function gameOver(){
     transition=null;cine=null;lifeFx=null;updateToolButtons();
     state='over'; bgmStop(); sfxSafe(()=>sfx.gameover());
