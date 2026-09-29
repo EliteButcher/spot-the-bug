@@ -1795,8 +1795,10 @@ function rollOvergrowth(season = 'summer'){
       ctx.restore();
     }
       // Top layer HUD elements that cut through weather
+      // Draw HUD absolutely last so weather never blocks hearts/tools
       drawRadarTrail(now);      
       drawHudInCanvas();
+      drawToolAnim(now);
       
       if(cine) drawCine(now);
       for (let i = floatingTexts.length - 1; i >= 0; i--) {
@@ -1895,14 +1897,110 @@ function rollOvergrowth(season = 'summer'){
   }
   function popBtn(el) { if(!el) return; el.classList.add('pop'); setTimeout(()=>el.classList.remove('pop'), 150); }
 
+ let toolAnim = null;
+  function drawToolAnim(now) {
+    if (!toolAnim) return;
+    const elapsed = now - toolAnim.t0;
+    if (elapsed < 0) return; // Wait for the delay phase
+    
+    const Wv = cv.clientWidth, Hv = cv.clientHeight;
+    const totalDur = 1800; 
+    
+    // Phase 4: Animation finished, slot-machine the UI counter
+    if (elapsed >= totalDur) {
+      charges[toolAnim.which]++;
+      updateToolButtons();
+      
+      const btn = toolAnim.which === 'scan' ? btnScan : btnFrz;
+      btn.classList.add('pop');
+      setTimeout(()=>btn.classList.remove('pop'), 200);
+      
+      const counter = document.getElementById('c-' + toolAnim.which);
+      counter.style.transition = 'transform 0.1s ease-out, color 0.1s ease-out';
+      counter.style.transform = 'scale(2.5)';
+      counter.style.color = '#f0c14b';
+      setTimeout(() => {
+          counter.style.transform = 'scale(1)';
+          counter.style.color = 'var(--accent)';
+      }, 300);
+      
+      sfxSafe(()=>sfx.tool());
+      toolAnim = null;
+      return;
+    }
+    
+    let x = Wv / 2, y = Hv / 2, scale = 1, rot = 0;
+    const btn = toolAnim.which === 'scan' ? btnScan : btnFrz;
+    const rect = btn.getBoundingClientRect();
+    const cvRect = cv.getBoundingClientRect();
+    const targetX = rect.left - cvRect.left + rect.width/2;
+    const targetY = rect.top - cvRect.top + rect.height/2;
+
+    if (elapsed < 400) {
+        // Phase 1: Slide up from the bottom
+        const p = elapsed / 400;
+        const easeOut = 1 - Math.pow(1 - p, 3);
+        y = Hv + 100 - easeOut * (Hv / 2 + 100);
+        if (elapsed < 20 && !toolAnim.playedStart) {
+            toolAnim.playedStart = true;
+            sfxSafe(() => { tone(400, 0.1, 'square', 0.05); tone(600, 0.15, 'square', 0.05, 0.1); });
+        }
+    } else if (elapsed < 1300) {
+        // Phase 2: Pause and rock in center
+        y = Hv / 2;
+        rot = Math.sin((elapsed - 400) / 70) * 0.12;
+    } else {
+        // Phase 3: Fly to the target DOM button
+        const p = (elapsed - 1300) / 500;
+        const easeIn = p * p * p;
+        x = Wv/2 + (targetX - Wv/2) * easeIn;
+        y = Hv/2 + (targetY - Hv/2) * easeIn;
+        scale = 1 - easeIn * 0.7; // Shrink visually as it enters the button
+    }
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 10;
+    
+    ctx.font = '50px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(toolAnim.which === 'scan' ? '🔍' : '❄️', 0, -30);
+    
+    ctx.shadowBlur = 4;
+    ctx.font = 'bold 18px Courier New';
+    ctx.fillStyle = '#ffb347';
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 4;
+    ctx.strokeText(toolAnim.reason, 0, 25);
+    ctx.fillText(toolAnim.reason, 0, 25);
+    
+    ctx.font = 'bold 15px Courier New';
+    ctx.fillStyle = '#39d98a';
+    const rewardText = `YOU'VE EARNED ${toolAnim.which === 'scan' ? 'RADAR' : 'FREEZE'}!`;
+    ctx.strokeText(rewardText, 0, 48);
+    ctx.fillText(rewardText, 0, 48);
+    
+    ctx.restore();
+  }
+
   function grantTool(){
     const which = Math.random()<0.6 ? 'scan' : 'freeze';
     if(charges[which]>=MAXC){ addScore(25); flashTag('Tool cache full. +25 score instead.', '#39d98a'); return; }
-    charges[which]++; sfxSafe(()=>sfx.tool());
-    flashTag(`Clean catch. ${which.toUpperCase()} charge earned.`, '#39d98a');
-    popBtn(which === 'scan' ? btnScan : btnFrz);
-    updateToolButtons();
+    
+    // Extend the transition delay so the player actually has time to watch the animation
+    if(transition) transition.at += 1800; 
+    
+    toolAnim = {
+        which: which,
+        reason: `x${streak} STREAK BONUS`,
+        t0: gameNow + 300 // Slight delay so it triggers right after the anomaly tag appears
+    };
   }
+
   function maybeGrantErnie(){
     if(streak>=6 && charges.ernie===0){
       charges.ernie=1; sfxSafe(()=>sfx.tool()); setTimeout(()=>sfxSafe(()=>sfx.tool()),140);
@@ -2130,7 +2228,7 @@ function rollOvergrowth(season = 'summer'){
     flashTag(b ? 'SPLAT. That worker was honest. Now it is terrain.' : 'Not the saboteur.', '#ff5d6c');
     if(lives<=0) gameOver();
   }
-  function nextRound(){
+ function nextRound(){
     if(state!=='hit') return;            
     state='advance';
     flashTag(anom.tag, '#ffb347');
@@ -2143,8 +2241,9 @@ function rollOvergrowth(season = 'summer'){
         $hearts.textContent = '●'.repeat(lives);
       }
       startRound();
-      if(streak>=3) grantTool();
     }};
+    // Trigger tool calculation immediately so the animation happens during the downtime
+    if(streak>=3) grantTool();
   }
   function gameOver(){
     transition=null;cine=null;lifeFx=null;updateToolButtons();
