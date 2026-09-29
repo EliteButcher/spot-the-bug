@@ -40,8 +40,8 @@
   #hud b{color:var(--ink)}
   #hearts{font-size:16px; letter-spacing:4px; color:var(--bad); text-align:center; flex:1;}
   #hearts.empty{color:#3a2b30}
-  #barwrap{width:100%; height:4px; background:#0a1210; overflow:hidden; transition: border-color 0.2s, box-shadow 0.2s;}
-  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear, background-color 0.2s;}
+  #barwrap{width:100%; height:6px; background:#0a1210; overflow:hidden; transition: border-color 0.2s, box-shadow 0.2s; position:relative; z-index:15;}
+  #timebar{height:100%; width:100%; background:var(--accent); transition:width .1s linear, background-color 0.2s, filter 0.1s;}
   .danger-pulse { animation: pulseBar 0.5s infinite; border-color: var(--bad) !important; }
   @keyframes pulseBar { 0% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(255, 93, 108, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0); } }
   #s { display: inline-block; font-size: 16px; color: var(--accent); text-shadow: 0 0 4px rgba(57, 217, 138, 0.3); font-weight: 900; transition: transform 0.1s ease-out; }
@@ -1110,14 +1110,16 @@ function rollOvergrowth(season = 'summer'){
     
     // Heartbeat Pulse when time is low for the HTML bar (desktop)
     const $barwrap = document.getElementById('barwrap');
-    if (left < 0.3 && state === 'play') {
-        $barwrap.style.boxShadow = Math.floor(now/150)%2===0 ? '0 0 10px rgba(255,93,108,0.8)' : 'none';
-    } else {
-        $barwrap.style.boxShadow = 'none';
-    }
-    
-    if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
+  if (left < 0.3 && state === 'play') { 
+      const isPulse = Math.floor(now/150)%2===0;
+      $barwrap.style.boxShadow = isPulse ? '0 0 16px 4px rgba(255,93,108,0.85), 0 0 4px rgba(255,255,255,0.5)' : 'none';
+      $timebar.style.filter = isPulse ? 'brightness(1.5)' : 'none';
+  } else { 
+      $barwrap.style.boxShadow = 'none';
+      $timebar.style.filter = 'none';
   }
+  if($crumbs) $crumbs.textContent = 'DELIVERED '+delivered;
+}
 
   let obstacleCache=null;
   function obstacles(){
@@ -2240,14 +2242,15 @@ function nextRound(){
     
     // Evaluate Capacity Increases
     const nextRnd = round + 1;
-    if (nextRnd >= 10 && nextRnd % 10 === 0) { maxC.freeze++; toolAnimQueue.push({type:'cap', which:'freeze', reason:`LEVEL ${nextRnd} MILESTONE`}); }
-    if (nextRnd >= 15 && nextRnd % 10 === 5) { maxC.scan++; toolAnimQueue.push({type:'cap', which:'scan', reason:`LEVEL ${nextRnd} MILESTONE`}); }
-    if (nextRnd >= 25 && nextRnd % 25 === 0) { maxC.ernie++; toolAnimQueue.push({type:'cap', which:'ernie', reason:`LEVEL ${nextRnd} MILESTONE`}); }
+    let capIncreased = false;
+    if (nextRnd >= 10 && nextRnd % 10 === 0) { maxC.freeze++; toolAnimQueue.push({type:'cap', which:'freeze', reason:`LEVEL ${nextRnd} MILESTONE`}); capIncreased = true; }
+    if (nextRnd >= 15 && nextRnd % 10 === 5) { maxC.scan++; toolAnimQueue.push({type:'cap', which:'scan', reason:`LEVEL ${nextRnd} MILESTONE`}); capIncreased = true; }
+    if (nextRnd >= 25 && nextRnd % 25 === 0) { maxC.ernie++; toolAnimQueue.push({type:'cap', which:'ernie', reason:`LEVEL ${nextRnd} MILESTONE`}); capIncreased = true; }
 
     // Evaluate Tool Rewards
     if (ernieEarnedThisRound) {
         toolAnimQueue.push({type:'ernie', which:'ernie', reason:'ULTIMATE REWARD'});
-    } else if (streak >= 3) {
+    } else if (streak >= 3 && !capIncreased) {
         let roll = Math.random();
         if (roll < 0.10) {
             toolAnimQueue.push({ type: 'score', amt: 1000, reason: 'RARE DROP' });
