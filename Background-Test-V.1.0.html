@@ -387,8 +387,10 @@
   let bugs=[], bugBug=null, anom=null, roundStart=0, roundLen=0, last=0;
   let delivered=0, scanUntil=0, freezeUntil=0, lastTick=10;
   let charges={ scan:1, freeze:0, ernie:0 };
-  const MAXC = 2;
+  let maxC={ scan:2, freeze:2, ernie:1 };
   let trail=[], lastTrailAt=0;
+  let ernieEarnedThisRound = false;
+  let toolAnim = null, toolAnimQueue = [];
   let heists=[], heistT=3;
   let splats=[];
   let keepGarden=false; 
@@ -1791,11 +1793,10 @@ function rollOvergrowth(season = 'summer'){
       ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(-25, -15); ctx.stroke();
-     ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(25, -15); ctx.stroke();
       ctx.restore();
     }
       // Top layer HUD elements that cut through weather
-      // Draw HUD absolutely last so weather never blocks hearts/tools
       drawRadarTrail(now);      
       drawHudInCanvas();
       drawToolAnim(now);
@@ -1882,8 +1883,10 @@ function rollOvergrowth(season = 'summer'){
     }
   }
 
-  function updateToolButtons(){
-    $cScan.textContent=charges.scan; $cFrz.textContent=charges.freeze;
+ function updateToolButtons(){
+    $cScan.textContent = `${charges.scan}/${maxC.scan}`; 
+    $cFrz.textContent = `${charges.freeze}/${maxC.freeze}`;
+    document.getElementById('c-ernie').textContent = `${charges.ernie}/${maxC.ernie}`;
     btnScan.disabled = charges.scan<=0 || state!=='play' || scanUntil > gameNow;
     btnFrz.disabled = charges.freeze<=0 || state!=='play' || freezeUntil > gameNow;
     document.getElementById('t-ernie').style.display = charges.ernie>0 ? 'flex' : 'none';
@@ -1897,118 +1900,116 @@ function rollOvergrowth(season = 'summer'){
   }
   function popBtn(el) { if(!el) return; el.classList.add('pop'); setTimeout(()=>el.classList.remove('pop'), 150); }
 
- let toolAnim = null;
   function drawToolAnim(now) {
-    if (!toolAnim) return;
+    if (!toolAnim) {
+        if (toolAnimQueue.length > 0) {
+            toolAnim = toolAnimQueue.shift();
+            toolAnim.t0 = now + 100;
+            toolAnim.playedStart = false;
+            // Extend the round down-time for EACH queued animation so they chain perfectly
+            if (transition) transition.at += 1800; 
+        } else {
+            return;
+        }
+    }
+    
     const elapsed = now - toolAnim.t0;
-    if (elapsed < 0) return; // Wait for the delay phase
+    if (elapsed < 0) return;
     
     const Wv = cv.clientWidth, Hv = cv.clientHeight;
     const totalDur = 1800; 
     
-    // Phase 4: Animation finished, slot-machine the UI counter
+    let targetEl;
+    if (toolAnim.type === 'score') {
+        targetEl = document.getElementById('s');
+    } else {
+        targetEl = document.getElementById(toolAnim.which === 'scan' ? 't-scan' : (toolAnim.which === 'freeze' ? 't-freeze' : 't-ernie'));
+    }
+    
     if (elapsed >= totalDur) {
-      charges[toolAnim.which]++;
-      updateToolButtons();
-      
-      const btn = toolAnim.which === 'scan' ? btnScan : btnFrz;
-      btn.classList.add('pop');
-      setTimeout(()=>btn.classList.remove('pop'), 200);
-      
-      const counter = document.getElementById('c-' + toolAnim.which);
-      counter.style.transition = 'transform 0.1s ease-out, color 0.1s ease-out';
-      counter.style.transform = 'scale(2.5)';
-      counter.style.color = '#f0c14b';
-      setTimeout(() => {
-          counter.style.transform = 'scale(1)';
-          counter.style.color = 'var(--accent)';
-      }, 300);
-      
-      sfxSafe(()=>sfx.tool());
-      toolAnim = null;
-      return;
+        if (toolAnim.type === 'tool' || toolAnim.type === 'ernie') { charges[toolAnim.which]++; sfxSafe(()=>sfx.tool()); }
+        else if (toolAnim.type === 'score') { addScore(toolAnim.amt); sfxSafe(()=>sfx.tool()); }
+        else if (toolAnim.type === 'cap') { sfxSafe(()=>sfx.extralife()); }
+        
+        updateToolButtons();
+        if (targetEl) popBtn(targetEl);
+        
+        // Slot machine swell for the text counter
+        const counterId = toolAnim.type === 'score' ? 's' : 'c-' + toolAnim.which;
+        const counter = document.getElementById(counterId);
+        if (counter) {
+            counter.style.transition = 'transform 0.1s ease-out, color 0.1s ease-out';
+            counter.style.transform = 'scale(2.5)';
+            counter.style.color = '#f0c14b';
+            setTimeout(() => {
+                counter.style.transform = 'scale(1)';
+                counter.style.color = 'var(--accent)';
+            }, 300);
+        }
+        toolAnim = null;
+        return;
     }
     
     let x = Wv / 2, y = Hv / 2, scale = 1, rot = 0;
-    const btn = toolAnim.which === 'scan' ? btnScan : btnFrz;
-    const rect = btn.getBoundingClientRect();
-    const cvRect = cv.getBoundingClientRect();
+    const rect = targetEl.getBoundingClientRect(), cvRect = cv.getBoundingClientRect();
     const targetX = rect.left - cvRect.left + rect.width/2;
     const targetY = rect.top - cvRect.top + rect.height/2;
 
     if (elapsed < 400) {
-        // Phase 1: Slide up from the bottom
-        const p = elapsed / 400;
-        const easeOut = 1 - Math.pow(1 - p, 3);
+        const p = elapsed / 400; const easeOut = 1 - Math.pow(1 - p, 3);
         y = Hv + 100 - easeOut * (Hv / 2 + 100);
         if (elapsed < 20 && !toolAnim.playedStart) {
             toolAnim.playedStart = true;
-            sfxSafe(() => { tone(400, 0.1, 'square', 0.05); tone(600, 0.15, 'square', 0.05, 0.1); });
+            if (toolAnim.type === 'cap') sfxSafe(() => { tone(400,0.1,'square',0.05); tone(600,0.1,'square',0.05,0.1); tone(800,0.2,'square',0.05,0.2); });
+            else if (toolAnim.type === 'ernie') sfxSafe(() => { tone(523,0.1,'triangle',0.08); tone(659,0.1,'triangle',0.08,0.1); tone(784,0.3,'triangle',0.08,0.2); });
+            else if (toolAnim.type === 'score') sfxSafe(() => { tone(900,0.1,'square',0.05); tone(1200,0.2,'square',0.05,0.1); });
+            else sfxSafe(() => { tone(400, 0.1, 'square', 0.05); tone(600, 0.15, 'square', 0.05, 0.1); });
         }
     } else if (elapsed < 1300) {
-        // Phase 2: Pause and rock in center
         y = Hv / 2;
-        rot = Math.sin((elapsed - 400) / 70) * 0.12;
+        rot = Math.sin((elapsed - 400) / 70) * 0.12; // Rock gently back and forth
     } else {
-        // Phase 3: Fly to the target DOM button
-        const p = (elapsed - 1300) / 500;
-        const easeIn = p * p * p;
+        const p = (elapsed - 1300) / 500; const easeIn = p * p * p;
         x = Wv/2 + (targetX - Wv/2) * easeIn;
         y = Hv/2 + (targetY - Hv/2) * easeIn;
-        scale = 1 - easeIn * 0.7; // Shrink visually as it enters the button
+        scale = 1 - easeIn * 0.7; // Shrink as it drops into the UI
     }
     
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rot);
-    ctx.scale(scale, scale);
+    ctx.translate(x, y); ctx.rotate(rot); ctx.scale(scale, scale);
+    ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 10;
     
-    ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 10;
+    let mI = '', mC = '', sT = '';
+    if (toolAnim.type === 'cap') {
+        mI = toolAnim.which === 'scan' ? '🔍⇪' : (toolAnim.which === 'freeze' ? '❄️⇪' : '👨‍💼⇪');
+        mC = '#4dc3ff'; sT = `${toolAnim.which.toUpperCase()} CAPACITY +1`;
+    } else if (toolAnim.type === 'score') {
+        mI = `+${toolAnim.amt}`; mC = '#f0c14b'; sT = 'BONUS SCORE';
+    } else if (toolAnim.type === 'ernie') {
+        mI = '👨‍💼'; mC = '#ffd27a'; sT = 'ULTIMATE REWARD: ERNIE';
+    } else {
+        mI = toolAnim.which === 'scan' ? '🔍' : '❄️'; mC = '#39d98a'; sT = `EARNED ${toolAnim.which.toUpperCase()}`;
+    }
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (toolAnim.type === 'score') {
+        ctx.fillStyle = '#f0c14b'; ctx.font = 'bold 45px Courier New';
+        ctx.strokeStyle = '#111'; ctx.lineWidth = 6;
+        ctx.strokeText(mI, 0, -30); ctx.fillText(mI, 0, -30);
+    } else {
+        ctx.font = '50px Arial'; ctx.fillText(mI, 0, -30);
+    }
     
-    ctx.font = '50px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(toolAnim.which === 'scan' ? '🔍' : '❄️', 0, -30);
-    
-    ctx.shadowBlur = 4;
-    ctx.font = 'bold 18px Courier New';
-    ctx.fillStyle = '#ffb347';
+    ctx.shadowBlur = 4; ctx.font = 'bold 18px Courier New';
+    ctx.fillStyle = toolAnim.type === 'ernie' ? '#ffd27a' : '#ffb347';
     ctx.strokeStyle = '#111'; ctx.lineWidth = 4;
-    ctx.strokeText(toolAnim.reason, 0, 25);
-    ctx.fillText(toolAnim.reason, 0, 25);
+    ctx.strokeText(toolAnim.reason, 0, 25); ctx.fillText(toolAnim.reason, 0, 25);
     
-    ctx.font = 'bold 15px Courier New';
-    ctx.fillStyle = '#39d98a';
-    const rewardText = `YOU'VE EARNED ${toolAnim.which === 'scan' ? 'RADAR' : 'FREEZE'}!`;
-    ctx.strokeText(rewardText, 0, 48);
-    ctx.fillText(rewardText, 0, 48);
-    
+    ctx.font = 'bold 15px Courier New'; ctx.fillStyle = mC;
+    ctx.strokeText(sT, 0, 48); ctx.fillText(sT, 0, 48);
     ctx.restore();
   }
 
-  function grantTool(){
-    const which = Math.random()<0.6 ? 'scan' : 'freeze';
-    if(charges[which]>=MAXC){ addScore(25); flashTag('Tool cache full. +25 score instead.', '#39d98a'); return; }
-    
-    // Extend the transition delay so the player actually has time to watch the animation
-    if(transition) transition.at += 1800; 
-    
-    toolAnim = {
-        which: which,
-        reason: `x${streak} STREAK BONUS`,
-        t0: gameNow + 300 // Slight delay so it triggers right after the anomaly tag appears
-    };
-  }
-
-  function maybeGrantErnie(){
-    if(streak>=6 && charges.ernie===0){
-      charges.ernie=1; sfxSafe(()=>sfx.tool()); setTimeout(()=>sfxSafe(()=>sfx.tool()),140);
-      flashTag('ERNIE IS ON THE FIELD. The golden button tags the saboteur for you.', '#ffd27a');
-      popBtn(document.getElementById('t-ernie'));
-      updateToolButtons();
-    }
-  }
   function useErnie(){
     if(charges.ernie<=0 || state!=='play' || !bugBug) return;
     charges.ernie--; state='cine'; cine={t0:gameNow,b:bugBug,landed:false}; readUntil=0;
@@ -2062,8 +2063,8 @@ function rollOvergrowth(season = 'summer'){
     if(changed && hold) readUntil=gameNow+1000; 
   }
 
-  function startRound(){
-    spawn(); state='play'; transition=null; readUntil=0; updateToolButtons();
+ function startRound(){
+    spawn(); state='play'; transition=null; readUntil=0; ernieEarnedThisRound=false; updateToolButtons();
     flashTag(anom && anom.hint ? (round===1 ? 'TUTORIAL: '+anom.hint : (round===2||round===3 ? anom.hint : '')) : '', '#ffb347', true);
   }
 
@@ -2156,7 +2157,11 @@ function rollOvergrowth(season = 'summer'){
     if(navigator.vibrate) navigator.vibrate(40);
     addScore(totalGain); // Send the full payload to the slot machine ticker
     sfxSafe(()=>sfx.catch());
-    if(!skipErnie) maybeGrantErnie();    
+    
+    if (!skipErnie && streak >= 6 && charges.ernie < maxC.ernie && !ernieEarnedThisRound) {
+        ernieEarnedThisRound = true;
+        flashTag('ERNIE SECURED! Awaiting round clear.', '#ffd27a');
+    }
     
     // Heat Gauge DOM Updates
     const $stkBadge = document.getElementById('stk-badge');
@@ -2228,10 +2233,40 @@ function rollOvergrowth(season = 'summer'){
     flashTag(b ? 'SPLAT. That worker was honest. Now it is terrain.' : 'Not the saboteur.', '#ff5d6c');
     if(lives<=0) gameOver();
   }
- function nextRound(){
+function nextRound(){
     if(state!=='hit') return;            
     state='advance';
     flashTag(anom.tag, '#ffb347');
+    
+    // Evaluate Capacity Increases
+    const nextRnd = round + 1;
+    if (nextRnd >= 10 && nextRnd % 10 === 0) { maxC.freeze++; toolAnimQueue.push({type:'cap', which:'freeze', reason:`LEVEL ${nextRnd} MILESTONE`}); }
+    if (nextRnd >= 15 && nextRnd % 10 === 5) { maxC.scan++; toolAnimQueue.push({type:'cap', which:'scan', reason:`LEVEL ${nextRnd} MILESTONE`}); }
+    if (nextRnd >= 25 && nextRnd % 25 === 0) { maxC.ernie++; toolAnimQueue.push({type:'cap', which:'ernie', reason:`LEVEL ${nextRnd} MILESTONE`}); }
+
+    // Evaluate Tool Rewards
+    if (ernieEarnedThisRound) {
+        toolAnimQueue.push({type:'ernie', which:'ernie', reason:'ULTIMATE REWARD'});
+    } else if (streak >= 3) {
+        let roll = Math.random();
+        if (roll < 0.10) {
+            toolAnimQueue.push({ type: 'score', amt: 1000, reason: 'RARE DROP' });
+        } else {
+            // Dynamic Weighting (50 Freeze : 40 Scan Baseline)
+            let fW = 50, sW = 40;
+            if (charges.freeze < charges.scan) fW += 40; // Shift balance to favor the deficit
+            else if (charges.scan < charges.freeze) sW += 40;
+            
+            let which = Math.random() < (fW / (fW + sW)) ? 'freeze' : 'scan';
+            
+            if (charges[which] >= maxC[which]) {
+                toolAnimQueue.push({ type: 'score', amt: 25, reason: 'CACHE FULL' });
+            } else {
+                toolAnimQueue.push({ type: 'tool', which: which, reason: `x${streak} STREAK BONUS` });
+            }
+        }
+    }
+
     transition={at:gameNow+1700,fn:()=>{
       if(lives<=0){ state='over'; return; }
       round++; $r.textContent=round;
@@ -2242,6 +2277,7 @@ function rollOvergrowth(season = 'summer'){
       }
       startRound();
     }};
+  }
     // Trigger tool calculation immediately so the animation happens during the downtime
     if(streak>=3) grantTool();
   }
